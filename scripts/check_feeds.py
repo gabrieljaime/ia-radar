@@ -35,7 +35,7 @@ async def check_feed(client: httpx.AsyncClient, name: str, url: str) -> dict[str
         response = await client.get(url, follow_redirects=True)
         result["http_status"] = response.status_code
         response.raise_for_status()
-        parsed = feedparser.loads(response.content)
+        parsed = feedparser.parse(response.content)
         result["entries"] = len(parsed.entries)
         result["valid_feed"] = bool(parsed.entries) and not bool(parsed.bozo)
         result["latest_entry"] = latest_entry_date(parsed.entries)
