@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+import hashlib
+import logging
+
+from app.alerts.base import AlertChannel
+from app.alerts.formatting import format_telegram_alert
+from app.collectors.base import Collector
+from app.db.repository import RadarRepository
+from app.domain.models import DiscardReason, PipelineResult
+from app.llm.base import LLMProvider
+from app.llm.provider import StructuredOutputError
+from app.pipeline.normalize import normalize_candidate
+from app.pipeline.prefilter import prefilter
+from app.pipeline.score import calculate_scores
+from app.profiles.models import ProfileConfig
+
+logger = logging.getLogger(__name__)
+
+
+class RadarService:
+    def __init__(
+        self,
+        collector: Collector,
+        llm: LLMProvider | None,
+        repository: RadarRepository,
+        profiles: list[ProfileConfig],
+        alert_channel: AlertChannel | None,
+        max_age_days: int = 14,
+        prefilter_min_score: int = 20,
+        alert_score_threshold: int = 90,
+        alert_confidence_threshold: float = 0.75,
+    ):
+        self.collector = collector
+        self.llm = llm
+        self.repository = repository
+        self.profiles = profiles
+        self.alert_channel = alert_channel
+        self.max_age_days = max_age_days
+        self.prefilter_min_score = prefilter_min_score
+        self.alert_score_threshold = alert_score_threshold
+        self.alert_confidence_threshold = alert_confidence_threshold
+
+    async def run(self) -> PipelineResult:
+        run = self.repository.start_run()
+        result = PipelineResult(run_id=run.id)
+        profile_rows = self.repository.sync_profiles(self.profiles)
+        try:
+            candidates = await self.collector.collect()
+            result.collected = len(candidates)
+            result.errors.extend(getattr(self.collector, "errors", []))
+            for raw_candidate in candidates:
+                try:
+                    await self._process_candidate(raw_candidate, profile_rows, result)
+                except Exception as error:  # isolate one candidate from the rest of the run
+                    logger.exception(
+                        "candidate_processing_failed",
+                        extra={"run_id": str(run.id), "error_type": type(error).__name__},
+                    )
+                    result.errors.append(f"candidate: {type(error).__name__}")
+        finally:
+            self.repository.finish_run(result)
+            logger.info(
+                "radar_run_completed",
+                extra={
+                    "run_id": str(run.id),
+                    "articles_found": result.collected,
+                    "articles_analyzed": result.analyzed,
+                    "alerts_sent": result.alerts_sent,
+                    "llm_calls": result.llm_calls,
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "estimated_cost_usd": round(result.estimated_cost_usd, 6),
+                    "discarded": result.discarded,
+                    "errors": len(result.errors),
+                },
+            )
+        return result
+
+    async def _process_candidate(self, candidate, profile_rows, result: PipelineResult) -> None:
+        candidate = normalize_candidate(candidate)
+        stored = self.repository.store_candidate(candidate)
+        if not stored.is_new_article:
+            if self.llm is not None and self.repository.event_needs_analysis(stored.event_id):
+                await self._analyze(stored, candidate, profile_rows, result)
+                return
+            result.record_discard(DiscardReason.ALREADY_SEEN)
+            return
+        if not stored.is_new_event:
+            result.record_discard(DiscardReason.DUPLICATE)
+            return
+
+        reason = prefilter(candidate, self.profiles, self.max_age_days, self.prefilter_min_score)
+        if reason:
+            self.repository.mark_discard(
+                stored.candidate_record_id, stored.article_id, stored.event_id, reason
+            )
+            result.record_discard(reason)
+            return
+
+        if self.llm is None:
+            return
+
+        await self._analyze(stored, candidate, profile_rows, result)
+
+    async def _analyze(self, stored, candidate, profile_rows, result: PipelineResult) -> None:
+        assert self.llm is not None
+        try:
+            result.llm_calls += 1
+            analysis = await self.llm.analyze_article(candidate, self.profiles)
+            usage = self.llm.last_usage
+            result.input_tokens += usage.input_tokens
+            result.output_tokens += usage.output_tokens
+            result.estimated_cost_usd += usage.estimated_cost_usd
+            expected = {profile.slug for profile in self.profiles if profile.enabled}
+            received = {evaluation.profile for evaluation in analysis.profiles}
+            if received != expected:
+                raise StructuredOutputError("LLM profile set does not match configured profiles")
+        except (StructuredOutputError, ValueError) as error:
+            self.repository.mark_analysis_failed(stored.candidate_record_id, stored.event_id)
+            result.record_discard(DiscardReason.ANALYSIS_FAILED)
+            result.errors.append(f"analysis: {type(error).__name__}")
+            return
+
+        scores = calculate_scores(analysis, candidate.source_trust, candidate.source_is_primary)
+        self.repository.save_analysis(stored.event_id, analysis, profile_rows, scores)
+        result.analyzed += 1
+
+        if analysis.hype_probability >= 0.9 and max(scores.values()) < self.alert_score_threshold:
+            self.repository.mark_discard(
+                stored.candidate_record_id,
+                stored.article_id,
+                stored.event_id,
+                DiscardReason.HIGH_HYPE,
+            )
+            result.record_discard(DiscardReason.HIGH_HYPE)
+        if (
+            max(scores.values()) >= self.alert_score_threshold
+            and analysis.confidence >= self.alert_confidence_threshold
+            and self.alert_channel is not None
+        ):
+            await self._send_alert(stored.event_id, candidate, analysis, scores, result)
+
+    async def _send_alert(self, event_id, candidate, analysis, scores, result) -> None:
+        text = format_telegram_alert(candidate, analysis, scores)
+        if getattr(self.alert_channel, "is_dry_run", False):
+            await self.alert_channel.send(text)
+            return
+        fingerprint = hashlib.sha256(text.encode()).hexdigest()
+        alert = self.repository.reserve_alert(event_id, fingerprint)
+        if alert is None:
+            return
+        try:
+            message_id = await self.alert_channel.send(text)
+        except Exception as error:
+            self.repository.mark_alert_failed(alert.id, type(error).__name__)
+            result.errors.append(f"telegram: {type(error).__name__}")
+            return
+        self.repository.mark_alert_sent(alert.id, message_id)
+        result.alerts_sent += 1

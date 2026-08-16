@@ -1,0 +1,21 @@
+slug: educator
+name: Educator
+description: Novedades de IA con impacto práctico o investigativo en educación superior.
+topics:
+  ai_tutors: 1.0
+  adaptive_learning: 0.95
+  assessment: 0.9
+  personalized_learning: 0.95
+  learning_analytics: 0.85
+  generative_ai_education: 1.0
+  academic_integrity: 0.8
+  educational_agents: 0.9
+  ai_literacy: 0.85
+  higher_education: 0.9
+  education_research: 0.85
+  student_support: 0.8
+  human_oversight: 0.8
+entities: {}
+actions:
+  suggest_teaching_use: true
+  suggest_research_use: true

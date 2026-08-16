@@ -1,0 +1,15 @@
+{
+  "summary": "Model X agrega capacidades para construir agentes.",
+  "what_happened": "Se publicó una versión con tool calling y structured output.",
+  "why_it_matters": "Permite actualizar ejemplos de agentes y evaluación.",
+  "what_changed": "Se incorporaron nuevas APIs.",
+  "novelty_score": 96,
+  "credibility_score": 98,
+  "confidence": 0.96,
+  "hype_probability": 0.05,
+  "profiles": [
+    {"profile": "educator", "score": 91, "reason": "Aplicable a tutores.", "suggested_action": "Evaluar un tutor.", "related_topics": ["ai_tutors"], "related_classes": []},
+    {"profile": "course", "score": 99, "reason": "Cambio central para agentes.", "suggested_action": "Demo para clase 11.", "related_topics": ["tool_calling", "structured_output"], "related_classes": [11]},
+    {"profile": "bank", "score": 93, "reason": "Impacta governance.", "suggested_action": "Revisar controles.", "related_topics": ["ai_governance"], "related_classes": []}
+  ]
+}

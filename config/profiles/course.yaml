@@ -1,0 +1,30 @@
+slug: course
+name: AI Agent Developer
+description: Cambios técnicos aplicables a un curso profesional de agentes de IA.
+topics:
+  agents: 1.0
+  agent_architecture: 1.0
+  mcp: 1.0
+  model_context_protocol: 1.0
+  tool_calling: 1.0
+  function_calling: 0.95
+  rag: 0.9
+  embeddings: 0.8
+  context_engineering: 0.95
+  memory: 0.9
+  langgraph: 0.95
+  local_models: 0.85
+  ollama: 0.9
+  quantization: 0.8
+  observability: 0.8
+  guardrails: 0.85
+  human_in_the_loop: 0.85
+  structured_output: 0.9
+  multimodal_agents: 0.85
+  evaluation: 0.85
+  model_releases: 0.9
+entities: {}
+actions:
+  identify_related_class: true
+  suggest_demo: true
+  suggest_course_update: true

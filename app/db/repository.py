@@ -1,0 +1,290 @@
+from __future__ import annotations
+
+import hashlib
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
+from rapidfuzz.fuzz import ratio
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.db.models import (
+    Alert,
+    Article,
+    CandidateRecord,
+    Event,
+    EventScore,
+    PipelineRun,
+    Profile,
+    Source,
+)
+from app.domain.models import Candidate, DiscardReason, PipelineResult, StoredCandidate
+from app.llm.schemas import ArticleAnalysis
+from app.profiles.models import ProfileConfig
+
+
+class RadarRepository:
+    def __init__(self, session: Session, title_threshold: float = 88.0):
+        self.session = session
+        self.title_threshold = title_threshold
+
+    def start_run(self) -> PipelineRun:
+        run = PipelineRun()
+        self.session.add(run)
+        self.session.commit()
+        return run
+
+    def finish_run(self, result: PipelineResult) -> None:
+        run = self.session.get(PipelineRun, result.run_id)
+        if run is None:
+            return
+        run.status = "completed_with_errors" if result.errors else "completed"
+        run.collected = result.collected
+        run.analyzed = result.analyzed
+        run.alerts_sent = result.alerts_sent
+        run.llm_calls = result.llm_calls
+        run.input_tokens = result.input_tokens
+        run.output_tokens = result.output_tokens
+        run.estimated_cost_usd = result.estimated_cost_usd
+        run.discard_counts = result.discarded
+        run.error_summary = result.errors
+        run.finished_at = datetime.now(UTC)
+        self.session.commit()
+
+    def store_candidate(self, candidate: Candidate) -> StoredCandidate:
+        record = CandidateRecord(
+            source_name=candidate.source_name,
+            canonical_url=candidate.canonical_url,
+            title=candidate.title,
+        )
+        self.session.add(record)
+        self.session.flush()
+        existing = self.session.scalar(
+            select(Article).where(Article.canonical_url == candidate.canonical_url)
+        )
+        if existing:
+            record.article_id = existing.id
+            record.event_id = existing.event_id
+            record.status = "discarded"
+            record.discard_reason = DiscardReason.ALREADY_SEEN.value
+            self.session.commit()
+            return StoredCandidate(
+                record.id, existing.id, existing.event_id, candidate, False, False
+            )
+
+        event = self._matching_event(candidate)
+        is_new_event = event is None
+        if event is None:
+            event = Event(
+                event_hash=hashlib.sha256(candidate.normalized_title.encode()).hexdigest(),
+                normalized_title=candidate.normalized_title,
+                title=candidate.title,
+            )
+            self.session.add(event)
+            self.session.flush()
+        else:
+            event.last_seen_at = datetime.now(UTC)
+
+        source = self._upsert_source(candidate)
+        article = Article(
+            event_id=event.id,
+            source_id=source.id,
+            external_id=candidate.external_id,
+            canonical_url=candidate.canonical_url,
+            normalized_title=candidate.normalized_title,
+            title=candidate.title,
+            summary_raw=candidate.summary,
+            published_at=candidate.published_at,
+            content_hash=candidate.content_hash,
+            status="duplicate" if not is_new_event else "new",
+            discard_reason=DiscardReason.DUPLICATE.value if not is_new_event else None,
+        )
+        self.session.add(article)
+        self.session.flush()
+        record.article_id = article.id
+        record.event_id = event.id
+        record.status = "discarded" if not is_new_event else "accepted"
+        record.discard_reason = DiscardReason.DUPLICATE.value if not is_new_event else None
+        try:
+            self.session.commit()
+        except IntegrityError:
+            self.session.rollback()
+            existing = self.session.scalar(
+                select(Article).where(Article.canonical_url == candidate.canonical_url)
+            )
+            if existing is None:
+                raise
+            retry_record = CandidateRecord(
+                article_id=existing.id,
+                event_id=existing.event_id,
+                source_name=candidate.source_name,
+                canonical_url=candidate.canonical_url,
+                title=candidate.title,
+                status="discarded",
+                discard_reason=DiscardReason.ALREADY_SEEN.value,
+            )
+            self.session.add(retry_record)
+            self.session.commit()
+            return StoredCandidate(
+                retry_record.id, existing.id, existing.event_id, candidate, False, False
+            )
+        return StoredCandidate(record.id, article.id, event.id, candidate, True, is_new_event)
+
+    def _matching_event(self, candidate: Candidate) -> Event | None:
+        # Very short boilerplate summaries (for example "Read more") are not reliable content.
+        if len(candidate.summary) >= 40:
+            exact_article = self.session.scalar(
+                select(Article).where(Article.content_hash == candidate.content_hash).limit(1)
+            )
+            if exact_article is not None:
+                return self.session.get(Event, exact_article.event_id)
+
+        cutoff = datetime.now(UTC) - timedelta(days=14)
+        events = self.session.scalars(select(Event).where(Event.first_seen_at >= cutoff)).all()
+        return next(
+            (
+                event
+                for event in events
+                if ratio(event.normalized_title, candidate.normalized_title) >= self.title_threshold
+            ),
+            None,
+        )
+
+    def _upsert_source(self, candidate: Candidate) -> Source:
+        source = self.session.scalar(
+            select(Source).where(
+                Source.source_type == "rss", Source.base_url == candidate.source_url
+            )
+        )
+        if source is None:
+            source = Source(
+                name=candidate.source_name,
+                source_type="rss",
+                base_url=candidate.source_url,
+                trust_level=candidate.source_trust,
+                is_primary=candidate.source_is_primary,
+            )
+            self.session.add(source)
+            self.session.flush()
+        return source
+
+    def sync_profiles(self, profiles: list[ProfileConfig]) -> dict[str, Profile]:
+        result = {}
+        for config in profiles:
+            profile = self.session.scalar(select(Profile).where(Profile.slug == config.slug))
+            if profile is None:
+                profile = Profile(slug=config.slug, name=config.name, enabled=config.enabled)
+                self.session.add(profile)
+                self.session.flush()
+            else:
+                profile.name = config.name
+                profile.enabled = config.enabled
+            result[config.slug] = profile
+        self.session.commit()
+        return result
+
+    def event_needs_analysis(self, event_id: UUID) -> bool:
+        event = self.session.get(Event, event_id)
+        return event is not None and event.status == "pending"
+
+    def save_analysis(
+        self,
+        event_id: UUID,
+        analysis: ArticleAnalysis,
+        profiles: dict[str, Profile],
+        final_scores: dict[str, int],
+    ) -> None:
+        event = self.session.get(Event, event_id)
+        if event is None:
+            raise LookupError(f"Unknown event: {event_id}")
+        event.summary = analysis.summary
+        event.what_happened = analysis.what_happened
+        event.why_it_matters = analysis.why_it_matters
+        event.what_changed = analysis.what_changed
+        event.novelty_score = analysis.novelty_score
+        event.credibility_score = analysis.credibility_score
+        event.confidence = analysis.confidence
+        event.hype_probability = analysis.hype_probability
+        event.status = "analyzed"
+        for evaluation in analysis.profiles:
+            profile = profiles.get(evaluation.profile)
+            if profile is None:
+                continue
+            score = self.session.scalar(
+                select(EventScore).where(
+                    EventScore.event_id == event_id, EventScore.profile_id == profile.id
+                )
+            )
+            if score is None:
+                score = EventScore(event_id=event_id, profile_id=profile.id)
+                self.session.add(score)
+            score.relevance_score = final_scores[evaluation.profile]
+            score.relevance_reason = evaluation.reason
+            score.suggested_action = evaluation.suggested_action
+            score.related_topics = evaluation.related_topics
+            score.related_classes = evaluation.related_classes
+        self.session.commit()
+
+    def mark_analysis_failed(self, candidate_record_id: UUID, event_id: UUID) -> None:
+        event = self.session.get(Event, event_id)
+        if event:
+            event.status = "discarded"
+            event.discard_reason = DiscardReason.ANALYSIS_FAILED.value
+        self._mark_candidate_record(candidate_record_id, DiscardReason.ANALYSIS_FAILED)
+        self.session.commit()
+
+    def mark_discard(
+        self, candidate_record_id: UUID, article_id: UUID, event_id: UUID, reason: DiscardReason
+    ) -> None:
+        article = self.session.get(Article, article_id)
+        event = self.session.get(Event, event_id)
+        if article:
+            article.status = "discarded"
+            article.discard_reason = reason.value
+        if event and reason != DiscardReason.DUPLICATE:
+            event.status = "discarded"
+            event.discard_reason = reason.value
+        self._mark_candidate_record(candidate_record_id, reason)
+        self.session.commit()
+
+    def _mark_candidate_record(self, record_id: UUID, reason: DiscardReason) -> None:
+        record = self.session.get(CandidateRecord, record_id)
+        if record:
+            record.status = "discarded"
+            record.discard_reason = reason.value
+
+    def reserve_alert(self, event_id: UUID, content_fingerprint: str) -> Alert | None:
+        existing = self.session.scalar(
+            select(Alert).where(
+                Alert.event_id == event_id,
+                Alert.alert_type == "immediate",
+                Alert.channel == "telegram",
+            )
+        )
+        if existing:
+            return None
+        alert = Alert(event_id=event_id, content_fingerprint=content_fingerprint)
+        self.session.add(alert)
+        try:
+            self.session.commit()
+        except IntegrityError:
+            # A concurrent run may have reserved the same event after our SELECT.
+            self.session.rollback()
+            return None
+        return alert
+
+    def mark_alert_sent(self, alert_id: UUID, provider_message_id: str) -> None:
+        alert = self.session.get(Alert, alert_id)
+        if alert:
+            alert.delivery_status = "sent"
+            alert.provider_message_id = provider_message_id
+            alert.sent_at = datetime.now(UTC)
+            self.session.commit()
+
+    def mark_alert_failed(self, alert_id: UUID, error_code: str) -> None:
+        alert = self.session.get(Alert, alert_id)
+        if alert:
+            alert.delivery_status = "failed"
+            alert.error_code = error_code[:100]
+            self.session.commit()
