@@ -1,0 +1,40 @@
+slug: bank
+name: Bank Risk Intelligence
+description: IA relevante para banca, riesgo, regulación y gobierno de modelos y datos.
+topics:
+  banking_ai: 1.0
+  credit_risk: 1.0
+  fraud: 0.95
+  compliance: 0.95
+  financial_crime: 0.95
+  model_risk: 1.0
+  ai_governance: 1.0
+  regulation: 0.95
+  explainability: 0.9
+  data_governance: 0.9
+  responsible_ai: 0.95
+  enterprise_agents: 0.9
+  generative_ai_banking: 1.0
+  financial_services: 0.95
+  regulatory_ai: 0.9
+  automation: 0.75
+  operational_risk: 0.9
+entities:
+  santander: 1.0
+  jpmorgan: 1.0
+  citi: 1.0
+  bbva: 1.0
+  nubank: 0.95
+  revolut: 0.95
+  bank_of_america: 1.0
+  wells_fargo: 1.0
+  goldman_sachs: 1.0
+  morgan_stanley: 1.0
+  bis: 1.0
+  ecb: 1.0
+  eba: 1.0
+  fca: 1.0
+  federal_reserve: 1.0
+actions:
+  suggest_internal_use_case: true
+  highlight_regulatory_impact: true

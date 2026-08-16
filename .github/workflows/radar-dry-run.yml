@@ -1,0 +1,38 @@
+name: AI Radar dry-run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ai_radar
+          POSTGRES_USER: ai_radar
+          POSTGRES_PASSWORD: ai_radar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_radar -d ai_radar"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://ai_radar:ai_radar@localhost:5432/ai_radar
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL || 'gpt-4.1-nano' }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_INPUT_COST_PER_MILLION_USD: ${{ secrets.LLM_INPUT_COST_PER_MILLION_USD || '0' }}
+      LLM_OUTPUT_COST_PER_MILLION_USD: ${{ secrets.LLM_OUTPUT_COST_PER_MILLION_USD || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - run: alembic upgrade head
+      - run: python scripts/run_radar.py --dry-run

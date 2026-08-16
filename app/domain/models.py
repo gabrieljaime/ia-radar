@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import StrEnum
+from uuid import UUID
+
+
+class DiscardReason(StrEnum):
+    DUPLICATE = "duplicate"
+    TOO_OLD = "too_old"
+    LOW_RELEVANCE = "low_relevance"
+    LOW_TRUST = "low_trust"
+    HIGH_HYPE = "high_hype"
+    ALREADY_SEEN = "already_seen"
+    INVALID = "invalid"
+    ANALYSIS_FAILED = "analysis_failed"
+
+
+@dataclass(slots=True)
+class Candidate:
+    source_name: str
+    source_url: str
+    source_trust: int
+    source_is_primary: bool
+    title: str
+    url: str
+    summary: str
+    published_at: datetime | None
+    external_id: str | None = None
+    canonical_url: str = ""
+    normalized_title: str = ""
+    content_hash: str = ""
+    discard_reason: DiscardReason | None = None
+
+
+@dataclass(slots=True)
+class StoredCandidate:
+    candidate_record_id: UUID
+    article_id: UUID
+    event_id: UUID
+    candidate: Candidate
+    is_new_article: bool
+    is_new_event: bool
+
+
+@dataclass(slots=True)
+class PipelineResult:
+    run_id: UUID
+    collected: int = 0
+    analyzed: int = 0
+    alerts_sent: int = 0
+    discarded: dict[str, int] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+    llm_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+
+    def record_discard(self, reason: DiscardReason) -> None:
+        self.discarded[reason.value] = self.discarded.get(reason.value, 0) + 1

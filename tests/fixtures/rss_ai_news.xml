@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+  <channel>
+    <title>Official AI News</title>
+    <link>https://example.com/news</link>
+    <description>Fixture feed</description>
+    <item>
+      <guid>release-model-x</guid>
+      <title>Model X adds tool calling for AI agents</title>
+      <link>https://example.com/news/model-x?utm_source=test</link>
+      <description>New structured output, agent evaluation and human oversight capabilities.</description>
+      <pubDate>Sat, 15 Aug 2026 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <guid>release-model-x-coverage</guid>
+      <title>Model X adds tool-calling for AI agents</title>
+      <link>https://example.org/articles/model-x</link>
+      <description>Coverage of structured output, agent evaluation and human oversight.</description>
+      <pubDate>Sat, 15 Aug 2026 13:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

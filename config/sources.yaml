@@ -1,0 +1,41 @@
+rss:
+  - name: OpenAI News
+    url: https://openai.com/news/rss.xml
+    category: official
+    trust_level: 100
+    is_primary: true
+  - name: Google AI Blog
+    url: https://blog.google/technology/ai/rss/
+    category: official
+    trust_level: 95
+    is_primary: true
+  - name: Google DeepMind
+    url: https://deepmind.google/discover/blog/rss.xml
+    category: research
+    trust_level: 100
+    is_primary: true
+  - name: Hugging Face Blog
+    url: https://huggingface.co/blog/feed.xml
+    category: official
+    trust_level: 90
+    is_primary: true
+  - name: Microsoft AI Blog
+    url: https://blogs.microsoft.com/ai/feed/
+    category: official
+    trust_level: 95
+    is_primary: true
+  - name: AWS Machine Learning Blog
+    url: https://aws.amazon.com/blogs/machine-learning/feed/
+    category: official
+    trust_level: 90
+    is_primary: true
+  - name: NVIDIA AI Blog
+    url: https://blogs.nvidia.com/blog/category/deep-learning/feed/
+    category: official
+    trust_level: 90
+    is_primary: true
+  - name: Apple Machine Learning Research
+    url: https://machinelearning.apple.com/rss.xml
+    category: research
+    trust_level: 95
+    is_primary: true
