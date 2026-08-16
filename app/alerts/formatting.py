@@ -10,8 +10,10 @@ def format_telegram_alert(
     candidate: Candidate, analysis: ArticleAnalysis, scores: dict[str, int]
 ) -> str:
     top_score = max(scores.values())
-    profile_lines = "\n".join(
-        f"{PROFILE_ICONS.get(profile, '•')} {html.escape(profile.title())}: {score}"
+    evaluations = {item.profile: item for item in analysis.profiles}
+    profile_lines = "\n\n".join(
+        f"{PROFILE_ICONS.get(profile, '•')} <b>{html.escape(profile.title())}</b>\n"
+        f"Relevancia: {evaluations[profile].relevance_score}\nAlerta: {score}"
         for profile, score in sorted(scores.items(), key=lambda item: item[1], reverse=True)
     )
     actions = "\n".join(
@@ -27,10 +29,13 @@ def format_telegram_alert(
     return (
         f"🔥 <b>AI RADAR — {top_score}/100</b>\n\n"
         f"<b>{html.escape(candidate.title)}</b>\n"
-        f"Confidence: {analysis.confidence:.2f}\n\n{profile_lines}\n\n"
+        f"Confidence: {analysis.confidence:.2f}\n"
+        f"Hype: {analysis.hype_probability:.2f}\n"
+        f"Fuente primaria: {'sí' if candidate.source_is_primary else 'no'}\n\n"
+        f"{profile_lines}\n\n"
         f"<b>QUÉ PASÓ</b>\n{html.escape(analysis.what_happened)}\n\n"
         f"<b>POR QUÉ IMPORTA</b>\n{html.escape(analysis.why_it_matters)}\n\n"
         f"<b>MOTIVO</b>\n{reasons}\n\n"
-        f"<b>PARA VOS</b>\n{actions or 'Sin acción sugerida.'}\n\n"
+        f"<b>ACCIÓN SUGERIDA</b>\n{actions or 'Sin acción sugerida.'}\n\n"
         f'<a href="{html.escape(candidate.canonical_url, quote=True)}">Fuente</a>'
     )

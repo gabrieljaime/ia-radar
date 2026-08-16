@@ -35,6 +35,8 @@ Complete en `.env`:
 - `LLM_API_KEY`: obligatoria para una corrida real.
 - `LLM_MODEL`: nombre de un modelo que soporte structured outputs.
 - `LLM_BASE_URL`: base URL del proveedor compatible.
+- `OUTPUT_LANGUAGE`: idioma del contenido generado (`es` por defecto); nombres técnicos, APIs,
+  frameworks y nombres propios se conservan en su idioma original.
 - `TELEGRAM_BOT_TOKEN`: necesaria para enviar alertas; se obtiene creando un bot con BotFather.
 - `TELEGRAM_CHAT_ID`: chat receptor. En ausencia de ambas variables Telegram queda desactivado, pero el pipeline puede procesar y persistir.
 - `DATABASE_URL`: la provista funciona con Compose; para Supabase use la URL PostgreSQL con el SSL requerido por la instancia.
@@ -62,6 +64,37 @@ Para validar feeds sin LLM ni Telegram:
 ```bash
 python scripts/check_feeds.py
 ```
+
+Para inspeccionar y calibrar la última corrida persistida, sin consumir llamadas LLM ni acceder
+a servicios externos:
+
+```bash
+python scripts/show_latest_run.py
+python scripts/show_latest_run.py --details
+```
+
+También se puede seleccionar una corrida con `--run-id <UUID>` o limitar la salida con `--limit`.
+
+Para revisar el digest sin enviar Telegram ni crear una reserva de envío:
+
+```bash
+python scripts/send_digest.py --dry-run
+```
+
+Para enviarlo utilizando exclusivamente análisis ya persistidos:
+
+```bash
+python scripts/send_digest.py
+```
+
+Durante el desarrollo, `--force` permite ignorar la protección contra duplicados:
+
+```bash
+python scripts/send_digest.py --force
+```
+
+El digest admite además `--hours 48` y `--run-id <UUID>`. No consulta RSS, no recalcula
+scores y realiza cero llamadas al LLM; el único acceso externo de un envío real es Telegram.
 
 Para probar exclusivamente la entrega de Telegram, sin modificar thresholds:
 

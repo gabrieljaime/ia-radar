@@ -1,10 +1,34 @@
+import json
 from pathlib import Path
 
 import httpx
 import pytest
 
 from app.domain.models import Candidate
-from app.llm.provider import OpenAICompatibleLLMProvider, StructuredOutputError
+from app.llm.provider import LLMRequestError, OpenAICompatibleLLMProvider, StructuredOutputError
+from app.llm.rate_limit import SpacedRateLimiter
+
+
+class FakeTime:
+    def __init__(self):
+        self.now = 0.0
+        self.sleeps = []
+
+    def clock(self):
+        return self.now
+
+    async def sleep(self, seconds):
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+async def test_rate_limiter_spaces_requests_without_losing_candidates():
+    fake = FakeTime()
+    limiter = SpacedRateLimiter(8, clock=fake.clock, sleep=fake.sleep)
+    for _ in range(20):
+        await limiter.wait()
+    assert fake.sleeps == [7.5] * 19
+    assert fake.now == 142.5
 
 
 async def test_invalid_provider_structured_output_is_rejected(profiles):
@@ -58,4 +82,88 @@ async def test_provider_records_reported_token_usage(profiles):
     assert provider.last_usage.input_tokens == 1000
     assert provider.last_usage.output_tokens == 500
     assert provider.last_usage.estimated_cost_usd == pytest.approx(0.002)
+    await provider.close()
+
+
+async def test_provider_requests_spanish_user_facing_content(profiles):
+    analysis = Path("tests/fixtures/analysis.json").read_text(encoding="utf-8")
+    captured_prompt = ""
+
+    async def handler(request):
+        nonlocal captured_prompt
+        captured_prompt = json.loads(request.content)["messages"][1]["content"]
+        return httpx.Response(200, json={"choices": [{"message": {"content": analysis}}]})
+
+    provider = OpenAICompatibleLLMProvider(
+        "key", "model", "https://llm.example", output_language="es"
+    )
+    await provider.client.aclose()
+    provider.client = httpx.AsyncClient(
+        base_url="https://llm.example", transport=httpx.MockTransport(handler)
+    )
+    item = Candidate("Official", "https://feed", 100, True, "AI", "https://x", "", None)
+    await provider.analyze_article(item, profiles)
+    assert "All user-facing generated content must be written in Spanish." in captured_prompt
+    assert "summary, what_happened, why_it_matters, what_changed, reason" in captured_prompt
+    assert "company names, model names" in captured_prompt
+    assert "article titles must remain in their original language" in captured_prompt
+    await provider.close()
+
+
+async def test_provider_retries_429_then_succeeds(profiles):
+    analysis = Path("tests/fixtures/analysis.json").read_text(encoding="utf-8")
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(429, headers={"Retry-After": "2"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": analysis}}]})
+
+    fake = FakeTime()
+    limiter = SpacedRateLimiter(60, clock=fake.clock, sleep=fake.sleep)
+    provider = OpenAICompatibleLLMProvider(
+        "key", "model", "https://llm.example", max_retries=3, rate_limiter=limiter, sleep=fake.sleep
+    )
+    await provider.client.aclose()
+    provider.client = httpx.AsyncClient(
+        base_url="https://llm.example", transport=httpx.MockTransport(handler)
+    )
+    item = Candidate("Official", "https://feed", 100, True, "AI", "https://x", "", None)
+    result = await provider.analyze_article(item, profiles)
+    assert result.novelty_score == 96
+    assert calls == 2
+    assert provider.llm_429_retries == 1
+    assert fake.sleeps == [2.0]
+    await provider.close()
+
+
+async def test_persistent_429_is_bounded(profiles):
+    calls = 0
+
+    async def handler(request):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(429)
+
+    fake = FakeTime()
+    limiter = SpacedRateLimiter(60, clock=fake.clock, sleep=fake.sleep)
+    provider = OpenAICompatibleLLMProvider(
+        "key",
+        "model",
+        "https://llm.example",
+        max_retries=3,
+        rate_limiter=limiter,
+        sleep=fake.sleep,
+        jitter=lambda start, end: 0,
+    )
+    await provider.client.aclose()
+    provider.client = httpx.AsyncClient(
+        base_url="https://llm.example", transport=httpx.MockTransport(handler)
+    )
+    item = Candidate("Official", "https://feed", 100, True, "AI", "https://x", "", None)
+    with pytest.raises(LLMRequestError):
+        await provider.analyze_article(item, profiles)
+    assert calls == 4
     await provider.close()

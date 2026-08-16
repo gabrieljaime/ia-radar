@@ -8,7 +8,7 @@ from app.application.radar_service import RadarService
 from app.db.models import Alert, Article, CandidateRecord, Event, EventScore
 from app.domain.models import Candidate
 from app.llm.base import LLMUsage
-from app.llm.provider import StructuredOutputError
+from app.llm.provider import LLMRequestError, StructuredOutputError
 
 
 def candidate(title="Model X adds tool calling for AI agents", url="https://example.com/model-x"):
@@ -184,3 +184,53 @@ async def test_pending_event_can_be_analyzed_on_later_run(repository, session, p
     event = session.scalar(select(Event))
     assert result.analyzed == 1
     assert event.status == "analyzed"
+
+
+async def test_three_profiles_use_one_llm_request(repository, profiles, analysis):
+    llm = StaticLLM(analysis)
+    result = await RadarService(
+        StaticCollector([candidate()]), llm, repository, profiles, RecordingChannel()
+    ).run()
+    assert len(profiles) == 3
+    assert llm.calls == result.llm_calls == 1
+
+
+class RateLimitedLLM:
+    last_usage = LLMUsage()
+
+    async def analyze_article(self, candidate, profiles):
+        raise LLMRequestError("retries exhausted")
+
+
+async def test_exhausted_429_marks_event_failed_without_aborting_run(repository, profiles):
+    result = await RadarService(
+        StaticCollector([candidate()]), RateLimitedLLM(), repository, profiles, RecordingChannel()
+    ).run()
+    assert result.discarded == {"analysis_failed": 1}
+    assert result.errors == ["analysis: LLMRequestError"]
+
+
+async def test_high_relevance_below_alert_threshold_does_not_alert(repository, profiles, analysis):
+    for evaluation in analysis.profiles:
+        evaluation.relevance_score = 100
+        evaluation.alert_score = 85
+    analysis.confidence = 0.95
+    analysis.hype_probability = 0
+    channel = RecordingChannel()
+    await RadarService(
+        StaticCollector([candidate()]), StaticLLM(analysis), repository, profiles, channel
+    ).run()
+    assert channel.messages == []
+
+
+async def test_alert_score_above_threshold_can_alert(repository, profiles, analysis):
+    for evaluation in analysis.profiles:
+        evaluation.relevance_score = 80
+        evaluation.alert_score = 94
+    analysis.confidence = 0.95
+    analysis.hype_probability = 0
+    channel = RecordingChannel()
+    await RadarService(
+        StaticCollector([candidate()]), StaticLLM(analysis), repository, profiles, channel
+    ).run()
+    assert len(channel.messages) == 1

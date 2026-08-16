@@ -15,6 +15,7 @@ class RSSSourceConfig(BaseModel):
     trust_level: int = Field(ge=0, le=100)
     is_primary: bool = True
     enabled: bool = True
+    requires_primary_verification: bool = False
 
 
 class SourcesConfig(BaseModel):
@@ -35,7 +36,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     config_dir: Path = Path("config")
     request_timeout_seconds: float = 20.0
-    max_article_age_days: int = 14
+    radar_lookback_hours: int = Field(default=48, gt=0)
+    llm_max_requests_per_minute: int = Field(default=8, gt=0)
+    llm_max_retries: int = Field(default=3, ge=0)
+    output_language: str = "es"
+    digest_lookback_hours: int = Field(default=24, gt=0)
+    digest_max_items: int = Field(default=10, gt=0)
+    digest_min_alert_score: int = Field(default=60, ge=0, le=100)
+    digest_max_actions: int = Field(default=3, ge=0)
     prefilter_min_score: int = 20
     dedupe_title_threshold: float = 88.0
     alert_score_threshold: int = 90

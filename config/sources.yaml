@@ -10,8 +10,8 @@ rss:
     trust_level: 95
     is_primary: true
   - name: Google DeepMind
-    url: https://deepmind.google/discover/blog/rss.xml
-    category: research
+    url: https://deepmind.google/blog/rss.xml
+    category: official
     trust_level: 100
     is_primary: true
   - name: Hugging Face Blog
@@ -19,9 +19,9 @@ rss:
     category: official
     trust_level: 90
     is_primary: true
-  - name: Microsoft AI Blog
-    url: https://blogs.microsoft.com/ai/feed/
-    category: official
+  - name: Microsoft Research
+    url: https://www.microsoft.com/en-us/research/feed/
+    category: research
     trust_level: 95
     is_primary: true
   - name: AWS Machine Learning Blog
@@ -29,13 +29,34 @@ rss:
     category: official
     trust_level: 90
     is_primary: true
-  - name: NVIDIA AI Blog
-    url: https://blogs.nvidia.com/blog/category/deep-learning/feed/
+  - name: NVIDIA Blog
+    url: https://blogs.nvidia.com/feed/
     category: official
-    trust_level: 90
+    trust_level: 95
+    is_primary: true
+  - name: NVIDIA Developer Blog
+    url: https://developer.nvidia.com/blog/feed/
+    category: technical
+    trust_level: 100
     is_primary: true
   - name: Apple Machine Learning Research
     url: https://machinelearning.apple.com/rss.xml
     category: research
     trust_level: 95
     is_primary: true
+  - name: Simon Willison
+    url: https://simonwillison.net/atom/everything/
+    category: expert
+    trust_level: 85
+    is_primary: false
+  - name: Latent Space
+    url: https://latent.space/feed
+    category: expert_media
+    trust_level: 80
+    is_primary: false
+  - name: Anthropic News Mirror
+    url: https://rsshub.bestblogs.dev/anthropic/news
+    category: community_mirror
+    trust_level: 65
+    is_primary: false
+    requires_primary_verification: true

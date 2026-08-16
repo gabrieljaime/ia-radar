@@ -3,7 +3,11 @@ from pydantic import BaseModel, Field
 
 class ProfileEvaluation(BaseModel):
     profile: str
-    score: int = Field(ge=0, le=100)
+    relevance_score: int = Field(ge=0, le=100)
+    novelty_score: int = Field(ge=0, le=100)
+    actionability_score: int = Field(ge=0, le=100)
+    strategic_impact_score: int = Field(ge=0, le=100)
+    alert_score: int = Field(ge=0, le=100)
     reason: str
     suggested_action: str | None = None
     related_topics: list[str]

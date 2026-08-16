@@ -48,6 +48,9 @@ async def main(dry_run: bool = False) -> int:
                 settings.request_timeout_seconds,
                 settings.llm_input_cost_per_million_usd,
                 settings.llm_output_cost_per_million_usd,
+                max_requests_per_minute=settings.llm_max_requests_per_minute,
+                max_retries=settings.llm_max_retries,
+                output_language=settings.output_language,
             )
         else:
             logger.warning("llm_disabled_missing_configuration")
@@ -66,7 +69,7 @@ async def main(dry_run: bool = False) -> int:
                     repository=RadarRepository(session, settings.dedupe_title_threshold),
                     profiles=profiles,
                     alert_channel=alert_channel,
-                    max_age_days=settings.max_article_age_days,
+                    lookback_hours=settings.radar_lookback_hours,
                     prefilter_min_score=settings.prefilter_min_score,
                     alert_score_threshold=settings.alert_score_threshold,
                     alert_confidence_threshold=settings.alert_confidence_threshold,

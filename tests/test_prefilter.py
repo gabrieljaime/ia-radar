@@ -16,7 +16,14 @@ def test_prefilter_records_too_old(profiles):
         "tool calling",
         datetime.now(UTC) - timedelta(days=30),
     )
-    assert prefilter(normalize_candidate(item), profiles, 14, 1) == DiscardReason.TOO_OLD
+    assert prefilter(normalize_candidate(item), profiles, 48, 1) == DiscardReason.TOO_OLD
+
+
+def test_prefilter_does_not_assume_missing_publication_is_recent(profiles):
+    item = Candidate(
+        "Official", "https://example.com/feed", 100, True, "AI release", "https://x.test", "", None
+    )
+    assert prefilter(normalize_candidate(item), profiles, 48, 0) == DiscardReason.INVALID
 
 
 def test_prefilter_records_low_relevance(profiles):

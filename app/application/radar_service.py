@@ -9,7 +9,7 @@ from app.collectors.base import Collector
 from app.db.repository import RadarRepository
 from app.domain.models import DiscardReason, PipelineResult
 from app.llm.base import LLMProvider
-from app.llm.provider import StructuredOutputError
+from app.llm.provider import LLMRequestError, StructuredOutputError
 from app.pipeline.normalize import normalize_candidate
 from app.pipeline.prefilter import prefilter
 from app.pipeline.score import calculate_scores
@@ -26,7 +26,7 @@ class RadarService:
         repository: RadarRepository,
         profiles: list[ProfileConfig],
         alert_channel: AlertChannel | None,
-        max_age_days: int = 14,
+        lookback_hours: int = 48,
         prefilter_min_score: int = 20,
         alert_score_threshold: int = 90,
         alert_confidence_threshold: float = 0.75,
@@ -36,7 +36,7 @@ class RadarService:
         self.repository = repository
         self.profiles = profiles
         self.alert_channel = alert_channel
-        self.max_age_days = max_age_days
+        self.lookback_hours = lookback_hours
         self.prefilter_min_score = prefilter_min_score
         self.alert_score_threshold = alert_score_threshold
         self.alert_confidence_threshold = alert_confidence_threshold
@@ -90,7 +90,7 @@ class RadarService:
             result.record_discard(DiscardReason.DUPLICATE)
             return
 
-        reason = prefilter(candidate, self.profiles, self.max_age_days, self.prefilter_min_score)
+        reason = prefilter(candidate, self.profiles, self.lookback_hours, self.prefilter_min_score)
         if reason:
             self.repository.mark_discard(
                 stored.candidate_record_id, stored.article_id, stored.event_id, reason
@@ -107,7 +107,20 @@ class RadarService:
         assert self.llm is not None
         try:
             result.llm_calls += 1
-            analysis = await self.llm.analyze_article(candidate, self.profiles)
+            try:
+                analysis = await self.llm.analyze_article(candidate, self.profiles)
+            finally:
+                waited = getattr(self.llm, "last_rate_limit_wait_seconds", 0.0)
+                if waited:
+                    logger.info(
+                        "event_llm_rate_limit_wait",
+                        extra={
+                            "run_id": str(result.run_id),
+                            "event_id": str(stored.event_id),
+                            "rate_limit_wait_seconds": round(waited, 3),
+                            "llm_provider": type(self.llm).__name__,
+                        },
+                    )
             usage = self.llm.last_usage
             result.input_tokens += usage.input_tokens
             result.output_tokens += usage.output_tokens
@@ -116,14 +129,16 @@ class RadarService:
             received = {evaluation.profile for evaluation in analysis.profiles}
             if received != expected:
                 raise StructuredOutputError("LLM profile set does not match configured profiles")
-        except (StructuredOutputError, ValueError) as error:
+        except (LLMRequestError, StructuredOutputError, ValueError) as error:
             self.repository.mark_analysis_failed(stored.candidate_record_id, stored.event_id)
             result.record_discard(DiscardReason.ANALYSIS_FAILED)
             result.errors.append(f"analysis: {type(error).__name__}")
             return
 
         scores = calculate_scores(analysis, candidate.source_trust, candidate.source_is_primary)
-        self.repository.save_analysis(stored.event_id, analysis, profile_rows, scores)
+        self.repository.save_analysis(
+            result.run_id, stored.event_id, analysis, profile_rows, scores
+        )
         result.analyzed += 1
 
         if analysis.hype_probability >= 0.9 and max(scores.values()) < self.alert_score_threshold:

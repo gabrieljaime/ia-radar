@@ -46,6 +46,7 @@ class Event(Base):
         CheckConstraint("hype_probability BETWEEN 0 AND 1"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    analyzed_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("pipeline_runs.id"), index=True)
     event_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     normalized_title: Mapped[str] = mapped_column(String(1000), index=True)
     title: Mapped[str] = mapped_column(String(1000))
@@ -114,11 +115,19 @@ class EventScore(Base):
     __table_args__ = (
         UniqueConstraint("event_id", "profile_id"),
         CheckConstraint("relevance_score BETWEEN 0 AND 100"),
+        CheckConstraint("novelty_score BETWEEN 0 AND 100"),
+        CheckConstraint("actionability_score BETWEEN 0 AND 100"),
+        CheckConstraint("strategic_impact_score BETWEEN 0 AND 100"),
+        CheckConstraint("alert_score BETWEEN 0 AND 100"),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id"), index=True)
     profile_id: Mapped[UUID] = mapped_column(ForeignKey("profiles.id"), index=True)
     relevance_score: Mapped[int] = mapped_column(Integer)
+    novelty_score: Mapped[int] = mapped_column(Integer, default=0)
+    actionability_score: Mapped[int] = mapped_column(Integer, default=0)
+    strategic_impact_score: Mapped[int] = mapped_column(Integer, default=0)
+    alert_score: Mapped[int] = mapped_column(Integer, default=0)
     relevance_reason: Mapped[str] = mapped_column(Text)
     suggested_action: Mapped[str | None] = mapped_column(Text)
     related_topics: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -156,3 +165,16 @@ class PipelineRun(Base):
     error_summary: Mapped[list[str]] = mapped_column(JSON, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Digest(Base):
+    __tablename__ = "digests"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    telegram_message_id: Mapped[str | None] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

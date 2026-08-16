@@ -190,6 +190,7 @@ class RadarRepository:
 
     def save_analysis(
         self,
+        run_id: UUID,
         event_id: UUID,
         analysis: ArticleAnalysis,
         profiles: dict[str, Profile],
@@ -206,6 +207,7 @@ class RadarRepository:
         event.credibility_score = analysis.credibility_score
         event.confidence = analysis.confidence
         event.hype_probability = analysis.hype_probability
+        event.analyzed_run_id = run_id
         event.status = "analyzed"
         for evaluation in analysis.profiles:
             profile = profiles.get(evaluation.profile)
@@ -219,7 +221,11 @@ class RadarRepository:
             if score is None:
                 score = EventScore(event_id=event_id, profile_id=profile.id)
                 self.session.add(score)
-            score.relevance_score = final_scores[evaluation.profile]
+            score.relevance_score = evaluation.relevance_score
+            score.novelty_score = evaluation.novelty_score
+            score.actionability_score = evaluation.actionability_score
+            score.strategic_impact_score = evaluation.strategic_impact_score
+            score.alert_score = final_scores[evaluation.profile]
             score.relevance_reason = evaluation.reason
             score.suggested_action = evaluation.suggested_action
             score.related_topics = evaluation.related_topics
