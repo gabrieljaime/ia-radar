@@ -32,11 +32,11 @@ class RSSCollector:
             async with self.semaphore:
                 response = await self.client.get(str(source.url), follow_redirects=True)
                 response.raise_for_status()
-            parsed = feedparser.loads(response.content)
+            parsed = feedparser.parse(response.content)
             if parsed.bozo and not parsed.entries:
                 raise ValueError("invalid RSS/Atom response")
             return [self._entry_to_candidate(source, entry) for entry in parsed.entries]
-        except (httpx.HTTPError, ValueError, AttributeError) as error:
+        except (httpx.HTTPError, ValueError) as error:
             self.errors.append(f"{source.name}: {type(error).__name__}")
             return []
 
