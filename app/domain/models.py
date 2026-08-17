@@ -61,6 +61,12 @@ class PipelineResult:
     input_tokens: int = 0
     output_tokens: int = 0
     estimated_cost_usd: float = 0.0
+    web_articles_sources_fetched: int = 0
+    web_articles_items_found: int = 0
+    web_articles_items_new: int = 0
+    web_articles_prefilter_passed: int = 0
+    candidates_new: int = 0
+    prefilter_passed: int = 0
 
     def record_discard(self, reason: DiscardReason) -> None:
         self.discarded[reason.value] = self.discarded.get(reason.value, 0) + 1

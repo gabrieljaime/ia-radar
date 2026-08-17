@@ -60,6 +60,42 @@ rss:
     trust_level: 65
     is_primary: false
     requires_primary_verification: true
+  - name: MIT Technology Review
+    url: https://www.technologyreview.com/feed/
+    category: expert_media
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: IEEE Spectrum AI
+    url: https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss
+    category: expert_media
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: Interconnects by Nathan Lambert
+    url: https://www.interconnects.ai/feed
+    category: expert_blog
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: Import AI by Jack Clark
+    url: https://jack-clark.net/feed/
+    category: technical_newsletter
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: Ahead of AI by Sebastian Raschka
+    url: https://magazine.sebastianraschka.com/feed
+    category: expert_blog
+    trust_level: 82
+    is_primary: false
+    requires_primary_verification: true
+  - name: Claude Platform Release Notes
+    url: https://platform.claude.com/docs/en/release-notes/feed.xml
+    category: api_changelog
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
 
 web_changelog:
   - name: Gemini API Release Notes
@@ -92,3 +128,79 @@ web_changelog:
     category: official
     trust_level: 100
     is_primary: true
+  - name: OpenAI API Changelog
+    url: https://developers.openai.com/api/docs/changelog
+    parser: openai_api
+    category: api_changelog
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
+  - name: DeepSeek API Changelog
+    url: https://api-docs.deepseek.com/updates/
+    parser: deepseek
+    category: api_changelog
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
+  - name: Cohere API Changelog
+    url: https://docs.cohere.com/v2/changelog
+    parser: cohere
+    category: api_changelog
+    trust_level: 95
+    is_primary: true
+    requires_primary_verification: false
+
+web_articles:
+  - name: The Batch by DeepLearning.AI
+    url: https://www.deeplearning.ai/the-batch/
+    parser: the_batch
+    category: technical_newsletter
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: Moonshot AI Kimi Blog
+    url: https://platform.kimi.com/blog
+    parser: kimi
+    category: official_blog
+    trust_level: 95
+    is_primary: true
+    requires_primary_verification: false
+
+github_releases:
+  - name: Model Context Protocol Specification Releases
+    url: https://github.com/modelcontextprotocol/modelcontextprotocol/releases
+    repo: modelcontextprotocol/modelcontextprotocol
+    category: protocol_releases
+    trust_level: 95
+    is_primary: true
+    requires_primary_verification: false
+  - name: vLLM GitHub Releases
+    url: https://github.com/vllm-project/vllm/releases
+    repo: vllm-project/vllm
+    category: github_releases
+    trust_level: 90
+    is_primary: true
+    requires_primary_verification: false
+
+huggingface_models:
+  - name: Qwen Hugging Face Organization
+    url: https://huggingface.co/Qwen
+    organization: Qwen
+    category: huggingface_models
+    trust_level: 95
+    is_primary: true
+    requires_primary_verification: false
+  - name: Z.ai GLM Hugging Face Organization
+    url: https://huggingface.co/zai-org
+    organization: zai-org
+    category: huggingface_models
+    trust_level: 90
+    is_primary: true
+    requires_primary_verification: false
+  - name: DeepSeek Hugging Face Organization
+    url: https://huggingface.co/deepseek-ai
+    organization: deepseek-ai
+    category: huggingface_models
+    trust_level: 95
+    is_primary: true
+    requires_primary_verification: false

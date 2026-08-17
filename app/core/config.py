@@ -22,9 +22,25 @@ class WebChangelogSourceConfig(RSSSourceConfig):
     parser: str
 
 
+class WebArticlesSourceConfig(RSSSourceConfig):
+    parser: str
+
+
+class GitHubReleasesSourceConfig(RSSSourceConfig):
+    repo: str
+
+
+class HuggingFaceModelsSourceConfig(RSSSourceConfig):
+    organization: str
+    limit: int = Field(default=20, ge=1, le=100)
+
+
 class SourcesConfig(BaseModel):
     rss: list[RSSSourceConfig]
     web_changelog: list[WebChangelogSourceConfig] = Field(default_factory=list)
+    web_articles: list[WebArticlesSourceConfig] = Field(default_factory=list)
+    github_releases: list[GitHubReleasesSourceConfig] = Field(default_factory=list)
+    huggingface_models: list[HuggingFaceModelsSourceConfig] = Field(default_factory=list)
 
 
 class Settings(BaseSettings):

@@ -56,6 +56,10 @@ class RadarService:
                 candidates = await self.collector.collect()
                 result.collected = len(candidates)
                 result.errors.extend(getattr(self.collector, "errors", []))
+                for child in getattr(self.collector, "collectors", []):
+                    if getattr(child, "metrics", None) is not None:
+                        result.web_articles_sources_fetched += child.metrics["sources_fetched"]
+                        result.web_articles_items_found += child.metrics["items_found"]
                 for raw_candidate in candidates:
                     try:
                         await self._process_candidate(raw_candidate, profile_rows, result)
@@ -89,6 +93,10 @@ class RadarService:
     async def _process_candidate(self, candidate, profile_rows, result: PipelineResult) -> None:
         candidate = normalize_candidate(candidate)
         stored = self.repository.store_candidate(candidate)
+        if stored.is_new_article:
+            result.candidates_new += 1
+        if candidate.source_type == "web_articles" and stored.is_new_article:
+            result.web_articles_items_new += 1
         if not stored.is_new_article:
             if self.llm is not None and self.repository.event_needs_analysis(stored.event_id):
                 await self._analyze(stored, candidate, profile_rows, result)
@@ -113,8 +121,14 @@ class RadarService:
             return
 
         if self.llm is None:
+            result.prefilter_passed += 1
+            if candidate.source_type == "web_articles":
+                result.web_articles_prefilter_passed += 1
             return
 
+        result.prefilter_passed += 1
+        if candidate.source_type == "web_articles":
+            result.web_articles_prefilter_passed += 1
         await self._analyze(stored, candidate, profile_rows, result)
 
     async def _analyze(self, stored, candidate, profile_rows, result: PipelineResult) -> None:

@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime, timedelta
 
 from app.domain.models import Candidate, DiscardReason
@@ -33,6 +34,47 @@ _BROAD_AI_SIGNALS = {
 
 _LOW_VALUE_UPDATE_SIGNALS = {"documentation", "docs update", "typo", "minor fix"}
 
+_WEB_ARTICLE_SIGNALS = {
+    "agentic",
+    "ai agent",
+    "ai chip",
+    "ai regulation",
+    "ai safety",
+    "benchmark",
+    "coding agent",
+    "computer use",
+    "context window",
+    "embedding",
+    "gpu",
+    "inference",
+    "large language model",
+    "llm",
+    "mcp",
+    "model release",
+    "multimodal",
+    "new model",
+    "npu",
+    "open weight",
+    "post-training",
+    "rag",
+    "reasoning model",
+    "reinforcement learning",
+    "rerank",
+    "tool calling",
+}
+
+_INFRASTRUCTURE_MAJOR_SIGNALS = {
+    "breaking change",
+    "new architecture",
+    "new model",
+    "quantization",
+    "speculative decoding",
+    "distributed serving",
+    "gpu support",
+    "performance improvement",
+    "performance milestone",
+}
+
 
 def prefilter(
     candidate: Candidate,
@@ -56,6 +98,10 @@ def prefilter(
         signal in text for signal in _LOW_VALUE_UPDATE_SIGNALS
     ):
         return DiscardReason.LOW_RELEVANCE
+    if candidate.source_type == "github_releases" and "vllm" in candidate.source_name.lower():
+        patch_release = bool(re.search(r"\bv?\d+\.\d+\.[1-9]\d*\b", candidate.title.lower()))
+        if patch_release and not any(signal in text for signal in _INFRASTRUCTURE_MAJOR_SIGNALS):
+            return DiscardReason.LOW_RELEVANCE
     weighted_matches = 0.0
     for profile in profiles:
         weighted_matches += sum(
@@ -68,6 +114,10 @@ def prefilter(
         )
     heuristic_score = min(100, round(weighted_matches * 30))
     if heuristic_score < min_score:
+        if candidate.source_type == "web_articles" and any(
+            signal in text for signal in _WEB_ARTICLE_SIGNALS
+        ):
+            return None
         # Exact profile keywords are intentionally conservative, but a highly trusted primary
         # feed should not lose a major release merely because its product name is new to YAML.
         if (

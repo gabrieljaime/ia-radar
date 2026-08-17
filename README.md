@@ -65,7 +65,7 @@ Para validar feeds sin LLM ni Telegram:
 python scripts/check_feeds.py
 ```
 
-Para validar juntas todas las fuentes RSS y `web_changelog`, incluyendo estado HTTP,
+Para validar juntas todas las fuentes RSS, `web_changelog` y `web_articles`, incluyendo estado HTTP,
 cantidad de entradas, fecha más reciente y estado de parsing, sin llamar al LLM:
 
 ```bash
@@ -121,12 +121,29 @@ curl http://localhost:8000/ready
 
 ## Fuentes y perfiles dinámicos
 
-- `config/sources.yaml` agrupa fuentes configurables por tipo: `rss` y `web_changelog`.
+- `config/sources.yaml` agrupa fuentes configurables por tipo: `rss`, `web_changelog`,
+  `web_articles`, `github_releases` y `huggingface_models`.
+- `rss` consume feeds estructurados; `web_changelog` extrae releases o cambios técnicos de una
+  página oficial; `web_articles` extrae solamente las tarjetas visibles de un índice editorial.
+  Siempre se prefiere un RSS/Atom oficial y estable al parser HTML.
 - Las fuentes `web_changelog` usan parsers HTML pequeños y específicos; cada entrada se convierte
   en un `Candidate` independiente y la URL canónica existente conserva la idempotencia entre corridas.
 - Para agregar una fuente RSS se agrega una entrada bajo `rss`. Para un changelog se agrega bajo
   `web_changelog` con `parser`, `enabled`, `trust_level`, `is_primary` y, cuando corresponda,
   `requires_primary_verification`.
+- Cada parser de `web_articles` recibe HTML y URL base y devuelve una lista uniforme de
+  `ArticleIndexItem(title, url, published_at, summary)`. Para agregar uno, implementar una función
+  específica en `app/collectors/web_articles.py`, registrarla en `PARSERS`, añadir fixtures locales
+  de estructura válida y cambiada, y habilitar la fuente sólo después de `check_sources.py`.
+  El collector hace una petición al índice y nunca descarga el cuerpo de cada artículo.
+- `github_releases` consume la API oficial de GitHub, ignora drafts y no inspecciona commits, PRs
+  ni tags. `huggingface_models` consulta la API pública por organización y usa `model id` y
+  `createdAt`; cambios posteriores de README o metadata conservan la misma identidad.
+- La evidencia secundaria se persiste con `requires_primary_verification` y una evidencia primaria
+  posterior actualiza el mismo evento. La política de alerta inmediata conserva por ahora la lógica
+  existente: distinguir automáticamente cobertura secundaria de análisis original del autor requiere
+  una señal editorial explícita y queda para una iteración posterior; no se bloquean análisis propios
+  sólo por publicarse en una fuente experta.
 - Cada YAML dentro de `config/profiles/` define un perfil con `slug`, `name`, `icon`,
   `description`, señales gratuitas y `enabled`.
 - Agregar una fuente o tema no requiere cambios de código; la configuración se valida al cargarla.

@@ -177,12 +177,103 @@ def parse_anthropic(html: str, base_url: str) -> list[dict]:
     return items
 
 
+def parse_openai_api(html: str, base_url: str) -> list[dict]:
+    soup = BeautifulSoup(html, "html.parser")
+    items = []
+    for section in soup.select("div.mb-12"):
+        month_heading = section.find("h3")
+        if month_heading is None or not re.fullmatch(
+            r"[A-Z][a-z]+,\s+20\d{2}", month_heading.get_text(" ", strip=True)
+        ):
+            continue
+        month_year = month_heading.get_text(" ", strip=True).replace(",", "")
+        for index, entry in enumerate(section.select(":scope > div.mt-5"), start=1):
+            badge = entry.select_one('[data-variant="outline"]')
+            content = entry.select_one("div[class*='ChangelogMarkdown']")
+            if badge is None or content is None:
+                continue
+            summary = content.get_text(" ", strip=True)
+            published = _date(f"{badge.get_text(' ', strip=True)} {month_year.split()[-1]}")
+            items.append(
+                {
+                    "title": _title(summary),
+                    "url": f"{base_url}#{published.strftime('%Y-%m-%d') if published else index}",
+                    "summary": summary,
+                    "published_at": published,
+                }
+            )
+    return items
+
+
+def parse_deepseek(html: str, base_url: str) -> list[dict]:
+    soup = BeautifulSoup(html, "html.parser")
+    items = []
+    for date_heading in soup.select('h2[id^="date-"]'):
+        published = _date(date_heading["id"].removeprefix("date-"))
+        node = date_heading.find_next_sibling()
+        while node and not (isinstance(node, Tag) and node.name == "h2"):
+            if isinstance(node, Tag) and node.name == "h3" and node.get("id"):
+                parts = []
+                sibling = node.find_next_sibling()
+                while sibling and not (
+                    isinstance(sibling, Tag) and sibling.name in {"h2", "h3", "hr"}
+                ):
+                    if isinstance(sibling, Tag):
+                        parts.append(sibling.get_text(" ", strip=True))
+                    sibling = sibling.find_next_sibling()
+                items.append(
+                    {
+                        "title": node.get_text(" ", strip=True),
+                        "url": f"{base_url}#{node['id']}",
+                        "summary": " ".join(part for part in parts if part),
+                        "published_at": published,
+                    }
+                )
+            node = node.find_next_sibling() if isinstance(node, Tag) else None
+    return items
+
+
+def parse_cohere(html: str, base_url: str) -> list[dict]:
+    soup = BeautifulSoup(html, "html.parser")
+    script_text = "\n".join(script.get_text() for script in soup.find_all("script"))
+    script_text = script_text.replace('\\"', '"').replace("\\n", "\n")
+    pattern = re.compile(
+        r'var frontmatter = \{\s*"title":\s*"(?P<title>[^"]+)",\s*'
+        r'"slug":\s*"(?P<slug>changelog/[^"]+)",\s*'
+        r'"createdAt":\s*"(?P<date>[^"]+)".*?'
+        r'"description":\s*"(?P<summary>[^"]*)"',
+        re.DOTALL,
+    )
+    items = []
+    for match in pattern.finditer(script_text):
+        date_text = re.sub(r"\s+\([^)]*\)$", "", match["date"])
+        published = None
+        for date_pattern in ("%a %b %d %Y %H:%M:%S", "%a %b %d %Y"):
+            try:
+                published = datetime.strptime(date_text, date_pattern).replace(tzinfo=UTC)
+                break
+            except ValueError:
+                continue
+        items.append(
+            {
+                "title": match["title"],
+                "url": urljoin(base_url, f"/{match['slug']}"),
+                "summary": match["summary"],
+                "published_at": published,
+            }
+        )
+    return items
+
+
 PARSERS: dict[str, Callable[[str, str], list[dict]]] = {
     "gemini": parse_gemini,
     "mistral": parse_mistral,
     "xai": parse_xai,
     "meta": parse_meta,
     "anthropic": parse_anthropic,
+    "openai_api": parse_openai_api,
+    "deepseek": parse_deepseek,
+    "cohere": parse_cohere,
 }
 
 

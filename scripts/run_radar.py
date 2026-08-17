@@ -10,7 +10,10 @@ from app.alerts.dry_run import DryRunAlertChannel
 from app.alerts.telegram import TelegramAlertChannel
 from app.application.radar_service import RadarService
 from app.collectors.composite import CompositeCollector
+from app.collectors.github_releases import GitHubReleasesCollector
+from app.collectors.huggingface_models import HuggingFaceModelsCollector
 from app.collectors.rss import RSSCollector
+from app.collectors.web_articles import WebArticlesCollector
 from app.collectors.web_changelog import WebChangelogCollector
 from app.core.config import get_settings, load_sources
 from app.core.logging import configure_logging
@@ -44,6 +47,9 @@ async def main(dry_run: bool = False) -> int:
             [
                 RSSCollector(sources.rss, http_client),
                 WebChangelogCollector(sources.web_changelog, http_client),
+                WebArticlesCollector(sources.web_articles, http_client),
+                GitHubReleasesCollector(sources.github_releases, http_client),
+                HuggingFaceModelsCollector(sources.huggingface_models, http_client),
             ]
         )
         llm = None
@@ -90,6 +96,23 @@ async def main(dry_run: bool = False) -> int:
             {
                 "run_id": str(result.run_id),
                 "events_analyzed": result.analyzed,
+                "articles_found": result.collected,
+                "sources_total": sum(
+                    len(getattr(sources, source_type))
+                    for source_type in (
+                        "rss",
+                        "web_changelog",
+                        "web_articles",
+                        "github_releases",
+                        "huggingface_models",
+                    )
+                ),
+                "candidates_new": result.candidates_new,
+                "prefilter_passed": result.prefilter_passed,
+                "web_articles_sources_fetched": result.web_articles_sources_fetched,
+                "web_articles_items_found": result.web_articles_items_found,
+                "web_articles_items_new": result.web_articles_items_new,
+                "web_articles_prefilter_passed": result.web_articles_prefilter_passed,
                 "llm_calls": result.llm_calls,
                 "input_tokens": result.input_tokens,
                 "output_tokens": result.output_tokens,

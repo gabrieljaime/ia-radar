@@ -146,7 +146,7 @@ class RadarRepository:
         record.event_id = event.id
         if is_new_event:
             event.origin_article_id = article.id
-        if source.is_primary:
+        if source.is_primary and self._should_prefer_primary(event, source):
             event.primary_source_verified = True
             event.primary_source_url = candidate.canonical_url
         if upgrade_reason:
@@ -189,6 +189,34 @@ class RadarRepository:
             should_reanalyze=bool(upgrade_reason),
             evidence_upgrade_reason=upgrade_reason,
         )
+
+    def _should_prefer_primary(self, event: Event, candidate_source: Source) -> bool:
+        if not event.primary_source_url:
+            return True
+        current_source = self.session.scalar(
+            select(Source)
+            .join(Article, Article.source_id == Source.id)
+            .where(
+                Article.event_id == event.id,
+                Article.canonical_url == event.primary_source_url,
+            )
+            .limit(1)
+        )
+        if current_source is None:
+            return True
+        priorities = {
+            "web_changelog": 50,
+            "rss": 45,
+            "web_articles": 40,
+            "github_releases": 30,
+            "huggingface_models": 30,
+        }
+        candidate_rank = (
+            priorities.get(candidate_source.source_type, 0),
+            candidate_source.trust_level,
+        )
+        current_rank = (priorities.get(current_source.source_type, 0), current_source.trust_level)
+        return candidate_rank > current_rank
 
     def _evidence_upgrade_reason(self, event: Event, candidate: Candidate) -> str | None:
         if event.status == "pending":

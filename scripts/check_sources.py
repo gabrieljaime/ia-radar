@@ -4,6 +4,9 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
+from app.collectors.github_releases import GitHubReleasesCollector
+from app.collectors.huggingface_models import HuggingFaceModelsCollector
+from app.collectors.web_articles import WebArticlesCollector
 from app.collectors.web_changelog import WebChangelogCollector
 from app.core.config import get_settings, load_sources
 from scripts.check_feeds import check_feed
@@ -72,6 +75,42 @@ async def main() -> int:
             }
             for health in web.health
         )
+        articles = WebArticlesCollector(sources.web_articles, client)
+        await articles.collect()
+        rows.extend(
+            {
+                "source": health["source"],
+                "type": "web_articles",
+                "http": health["http_status"] or "error",
+                "items": health["items"],
+                "latest": health["latest"].isoformat() if health["latest"] else "unknown",
+                "status": source_status(
+                    health["http_status"],
+                    health["items"],
+                    health["latest"],
+                    health["status"] in {"OK", "EMPTY"},
+                ),
+            }
+            for health in articles.health
+        )
+        for source_type, collector in (
+            ("github_releases", GitHubReleasesCollector(sources.github_releases, client)),
+            ("huggingface_models", HuggingFaceModelsCollector(sources.huggingface_models, client)),
+        ):
+            await collector.collect()
+            rows.extend(
+                {
+                    "source": health["source"],
+                    "type": source_type,
+                    "http": health["http_status"] or "error",
+                    "items": health["items"],
+                    "latest": health["latest"].isoformat() if health["latest"] else "unknown",
+                    "status": health["status"]
+                    if health["status"] != "OK"
+                    else source_status(health["http_status"], health["items"], health["latest"]),
+                }
+                for health in collector.health
+            )
     print("SOURCE\tTYPE\tHTTP\tITEMS\tLATEST\tSTATUS")
     for row in rows:
         print("{source}\t{type}\t{http}\t{items}\t{latest}\t{status}".format(**row))
