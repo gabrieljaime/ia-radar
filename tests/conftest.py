@@ -19,7 +19,7 @@ class StaticLLM:
         self.profile_calls = []
         self.last_usage = LLMUsage()
 
-    async def analyze_article(self, candidate, profiles):
+    async def analyze_article(self, candidate, profiles, *, retry: bool = False):
         self.calls += 1
         self.profile_calls.append([profile.slug for profile in profiles])
         return self.analysis

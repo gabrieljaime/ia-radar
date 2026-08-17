@@ -85,6 +85,28 @@ async def test_provider_records_reported_token_usage(profiles):
     await provider.close()
 
 
+async def test_provider_uses_nonzero_temperature_only_on_retry(profiles):
+    analysis = Path("tests/fixtures/analysis.json").read_text(encoding="utf-8")
+    captured_temperatures = []
+
+    async def handler(request):
+        captured_temperatures.append(json.loads(request.content)["temperature"])
+        return httpx.Response(200, json={"choices": [{"message": {"content": analysis}}]})
+
+    provider = OpenAICompatibleLLMProvider("test-key", "test-model", "https://llm.example")
+    await provider.client.aclose()
+    provider.client = httpx.AsyncClient(
+        base_url="https://llm.example", transport=httpx.MockTransport(handler)
+    )
+    candidate = Candidate(
+        "Official", "https://feed.example", 100, True, "AI model", "https://example/a", "", None
+    )
+    await provider.analyze_article(candidate, profiles)
+    await provider.analyze_article(candidate, profiles, retry=True)
+    await provider.close()
+    assert captured_temperatures == [0, 0.3]
+
+
 async def test_provider_requests_spanish_user_facing_content(profiles):
     analysis = Path("tests/fixtures/analysis.json").read_text(encoding="utf-8")
     captured_prompt = ""

@@ -17,5 +17,5 @@ class LLMProvider(Protocol):
     last_usage: LLMUsage
 
     async def analyze_article(
-        self, candidate: Candidate, profiles: list[ProfileConfig]
+        self, candidate: Candidate, profiles: list[ProfileConfig], *, retry: bool = False
     ) -> ArticleAnalysis: ...

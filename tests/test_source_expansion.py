@@ -132,6 +132,22 @@ def test_cohere_entries_are_parsed_atomically_without_neighbor_contamination():
     assert "Command R 7B" not in command["summary"]
 
 
+def test_cohere_command_r_plus_extraction_keeps_the_plus():
+    html = """
+    <script>var frontmatter = {"title": "Command R+ update", "slug":
+    "changelog/command-r-plus", "createdAt": "Mon Aug 10 2026 09:00:00 (EST)",
+    "description": "Command R+ gains new tool use."};</script>
+    """
+    (entry,) = parse_cohere(html, "https://docs.cohere.com/v2/changelog")
+    assert entry["exact_model_id"] == "Command R+"
+
+
+def test_factual_anchor_accepts_formatting_variance(analysis):
+    candidate = type("Anchored", (), {"exact_model_id": "Qwen/Qwen3.8-27B-FP8"})()
+    matching = analysis.model_copy(update={"subject_name": "Qwen3.8 27B FP8"})
+    validate_factual_anchors(candidate, matching)
+
+
 def test_factual_anchor_rejects_related_but_different_model(analysis):
     candidate = type("Anchored", (), {"exact_model_id": "Qwen/Qwen3.8-2.4T-A95B"})()
     wrong = analysis.model_copy(update={"subject_name": "Qwen/Qwen3.8-27B"})

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,10 @@ from app.db.models import Alert, Article, Digest, Event, EventScore, PipelineRun
 from app.pipeline.score import classify_alert_score
 
 TELEGRAM_SAFE_LENGTH = 3800
+
+
+def _effective_published_at():
+    return func.coalesce(Article.published_at, Article.discovered_at)
 
 
 @dataclass(slots=True)
@@ -41,7 +45,9 @@ class DigestEvent:
 
     @property
     def recency(self) -> float:
-        value = self.article.published_at if self.article else None
+        value = None
+        if self.article:
+            value = self.article.published_at or self.article.discovered_at
         return value.timestamp() if value else float("-inf")
 
 
@@ -145,37 +151,41 @@ class DigestService:
     def _load_events(
         self, period_start: datetime, period_end: datetime, run: PipelineRun | None
     ) -> list[DigestEvent]:
-        run_condition = Event.analyzed_run_id == run.id if run else True
+        # A run-scoped digest reviews what one pipeline run analyzed: analyzed_run_id
+        # is sufficient on its own. The run's own start/finish window is typically
+        # seconds to minutes, while Article.published_at is the source's own
+        # publication date (often days or weeks old) — applying the publish-date
+        # window here would exclude nearly every article the run actually analyzed.
+        if run:
+            window_condition = Event.analyzed_run_id == run.id
+        else:
+            effective_date = _effective_published_at()
+            window_condition = and_(effective_date >= period_start, effective_date <= period_end)
         events = self.session.scalars(
             select(Event)
             .join(EventScore, EventScore.event_id == Event.id)
             .join(Article, Article.event_id == Event.id)
-            .where(
-                run_condition,
-                Article.published_at.is_not(None),
-                Article.published_at >= period_start,
-                Article.published_at <= period_end,
-            )
+            .where(window_condition)
             .distinct()
         ).all()
         return [
             item
             for event in events
-            if (item := self._hydrate(event, period_start, period_end)).scores
+            if (item := self._hydrate(event, period_start, period_end, run)).scores
         ]
 
-    def _hydrate(self, event: Event, period_start: datetime, period_end: datetime) -> DigestEvent:
-        article = self.session.scalar(
-            select(Article)
-            .where(
-                Article.event_id == event.id,
-                Article.published_at.is_not(None),
-                Article.published_at >= period_start,
-                Article.published_at <= period_end,
-            )
-            .order_by(desc(Article.published_at))
-            .limit(1)
-        )
+    def _hydrate(
+        self,
+        event: Event,
+        period_start: datetime,
+        period_end: datetime,
+        run: PipelineRun | None,
+    ) -> DigestEvent:
+        effective_date = _effective_published_at()
+        query = select(Article).where(Article.event_id == event.id)
+        if not run:
+            query = query.where(effective_date >= period_start, effective_date <= period_end)
+        article = self.session.scalar(query.order_by(desc(effective_date)).limit(1))
         if article is None:
             return DigestEvent(event, None, None, {}, {}, False)
         source = self.session.get(Source, article.source_id) if article else None

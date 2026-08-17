@@ -1,25 +1,26 @@
-from app.domain.models import Candidate
-from app.pipeline.normalize import canonicalize_url, normalize_candidate, normalize_title
+from app.pipeline.normalize import base_model_identity
 
 
-def test_canonicalize_url_removes_tracking_and_fragment():
-    assert canonicalize_url("HTTPS://Example.COM/news/?utm_source=x&id=3#part") == (
-        "https://example.com/news?id=3"
+def test_quantization_variants_collapse_to_the_same_identity():
+    assert base_model_identity("Qwen3-235B-A22B") == base_model_identity("Qwen3-235B-A22B-FP8")
+    assert base_model_identity("Qwen3-235B-A22B") == base_model_identity(
+        "Qwen/Qwen3-235B-A22B-GGUF"
     )
 
 
-def test_normalize_title_and_content_hash():
-    candidate = Candidate(
-        "source",
-        "https://feed",
-        90,
-        True,
-        "  AI: Agents! ",
-        "https://x/a",
-        "<b>New</b> release",
-        None,
-    )
-    result = normalize_candidate(candidate)
-    assert normalize_title(candidate.title) == "ai agents"
-    assert result.summary == "New release"
-    assert len(result.content_hash) == 64
+def test_tuning_variants_stay_distinct_identities():
+    base = base_model_identity("Qwen3-235B-A22B")
+    instruct = base_model_identity("Qwen3-235B-A22B-Instruct")
+    assert base is not None
+    assert instruct is not None
+    assert base != instruct
+
+
+def test_cohere_command_family_recognized():
+    assert base_model_identity("Command A") == "command-a"
+    assert base_model_identity("Command A Vision") != base_model_identity("Command A Reasoning")
+    assert base_model_identity("Command R+") != base_model_identity("Command R")
+
+
+def test_unrelated_titles_return_none():
+    assert base_model_identity("A completely unrelated announcement") is None

@@ -138,6 +138,45 @@ async def test_model_artifact_and_expert_article_become_one_event(
     assert session.scalar(select(func.count()).select_from(Article)) == 3
 
 
+async def test_verified_subject_name_is_persisted_on_the_event(
+    repository, session, profiles, analysis
+):
+    anchored = candidate("Model X arrives", exact_model_id="Model X")
+    await RadarService(
+        StaticCollector([anchored]), StaticLLM(analysis), repository, profiles, None
+    ).run()
+    event = session.scalar(select(Event))
+    assert event.subject_name == "Model X"
+
+
+async def test_comparison_article_without_exact_model_id_does_not_false_merge(
+    repository, session, profiles, analysis
+):
+    release = candidate(
+        "New model repository: Qwen/Qwen3.8-27B-FP8",
+        "https://huggingface.co/Qwen/Qwen3.8-27B-FP8",
+        source_name="Qwen HF",
+        source_type="huggingface_models",
+        exact_model_id="Qwen/Qwen3.8-27B-FP8",
+    )
+    comparison = candidate(
+        "DeepSeek 3.1 vs Qwen 3.8: which is better?",
+        "https://blog.example/deepseek-vs-qwen",
+        source_name="Tech Blog",
+    )
+    comparison.summary = "A head-to-head benchmark comparison across coding and reasoning tasks."
+    anchored_analysis = analysis.model_copy(update={"subject_name": "Qwen/Qwen3.8-27B-FP8"})
+    result = await RadarService(
+        StaticCollector([release, comparison]),
+        StaticLLM(anchored_analysis),
+        repository,
+        profiles,
+        None,
+    ).run()
+    assert result.analyzed == 2
+    assert session.scalar(select(func.count()).select_from(Event)) == 2
+
+
 async def test_same_content_with_different_titles_is_exact_duplicate(
     repository, session, profiles, analysis
 ):
@@ -195,7 +234,7 @@ async def test_telegram_failure_preserves_failed_alert(repository, session, prof
 class InvalidLLM:
     last_usage = LLMUsage()
 
-    async def analyze_article(self, candidate, profiles):
+    async def analyze_article(self, candidate, profiles, *, retry: bool = False):
         raise StructuredOutputError("bad payload")
 
 
@@ -328,7 +367,7 @@ async def test_profile_ids_must_exactly_match_enabled_configuration(
 class RateLimitedLLM:
     last_usage = LLMUsage()
 
-    async def analyze_article(self, candidate, profiles):
+    async def analyze_article(self, candidate, profiles, *, retry: bool = False):
         raise LLMRequestError("retries exhausted")
 
 
@@ -337,7 +376,7 @@ async def test_exhausted_429_marks_event_failed_without_aborting_run(repository,
         StaticCollector([candidate()]), RateLimitedLLM(), repository, profiles, RecordingChannel()
     ).run()
     assert result.discarded == {"analysis_failed": 1}
-    assert result.errors == ["analysis: LLMRequestError"]
+    assert result.errors == ["analysis: LLMRequestError: retries exhausted"]
 
 
 async def test_high_relevance_below_alert_threshold_does_not_alert(repository, profiles, analysis):

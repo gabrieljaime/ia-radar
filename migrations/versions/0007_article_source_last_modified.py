@@ -1,8 +1,4 @@
-"""Persist source-side modification timestamp separately from publication.
-
-Revision ID: 0007_source_modified
-Revises: 0006_event_evidence
-"""
+"""Persist source-side modification timestamp separately from publication."""
 
 import sqlalchemy as sa
 from alembic import op

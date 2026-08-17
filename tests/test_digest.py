@@ -111,6 +111,24 @@ def add_event(
     return event
 
 
+def test_digest_event_recency_falls_back_to_discovered_at():
+    from app.digest.service import DigestEvent
+
+    now = datetime(2026, 8, 16, 23, 51, tzinfo=UTC)
+    discovered = now - timedelta(hours=2)
+    article = Article(
+        canonical_url="https://article.example/x",
+        normalized_title="x",
+        title="x",
+        summary_raw="",
+        published_at=None,
+        discovered_at=discovered,
+        content_hash=uuid4().hex,
+    )
+    item = DigestEvent(Event(), article, None, {}, {}, False)
+    assert item.recency == discovered.timestamp()
+
+
 async def test_digest_selects_threshold_and_orders_events(session):
     add_event(session, title="Critical", alert=91, relevance=70, actionability=60)
     add_event(session, title="Relevant", alert=84, relevance=95, actionability=90)
@@ -217,7 +235,7 @@ async def test_digest_lookback_uses_publication_not_first_seen(session):
     assert all(title not in text for title in ("Yesterday", "June", "Old Cohere"))
 
 
-async def test_digest_excludes_missing_publication_and_humanizes_action_enum(session):
+async def test_digest_falls_back_to_discovered_at_and_humanizes_action_enum(session):
     recent = add_event(session, title="Action", alert=80, suggested_action="suggest_demo")
     missing = add_event(session, title="Missing date", alert=80)
     article = session.scalar(select(Article).where(Article.event_id == missing.id))
@@ -226,8 +244,49 @@ async def test_digest_excludes_missing_publication_and_humanizes_action_enum(ses
     result = await DigestService(session, None).send_digest(dry_run=True)
     text = "\n".join(result.messages)
     assert recent.title in text
-    assert "Missing date" not in text
+    # No reliable publish date is not the same as no signal at all: the event was
+    # discovered moments ago, so it still shows up via the discovered_at fallback.
+    assert "Missing date" in text
     assert "Probarlo en una demo" in text
     assert "suggest_demo" not in text
     assert text.count("• Probarlo en una demo") == 1
-    assert "1 novedad relevante" in text
+    assert "2 novedades relevantes" in text
+
+
+async def test_digest_still_excludes_stale_events_with_missing_publication(session):
+    now = datetime(2026, 8, 16, 23, 51, tzinfo=UTC)
+    recent = add_event(session, title="Recent", alert=80, published_at=now, first_seen_at=now)
+    stale = add_event(
+        session,
+        title="Stale missing date",
+        alert=80,
+        first_seen_at=now - timedelta(days=30),
+    )
+    article = session.scalar(select(Article).where(Article.event_id == stale.id))
+    article.published_at = None
+    session.commit()
+    result = await DigestService(session, None, now=now).send_digest(hours=24, dry_run=True)
+    text = "\n".join(result.messages)
+    assert recent.title in text
+    assert stale.title not in text
+
+
+async def test_digest_run_scoped_ignores_publish_date_window(session):
+    from app.db.models import PipelineRun
+
+    now = datetime(2026, 8, 16, 23, 51, tzinfo=UTC)
+    run = PipelineRun(started_at=now - timedelta(minutes=5), finished_at=now)
+    session.add(run)
+    session.flush()
+    old_event = add_event(
+        session,
+        title="Old article, this run",
+        alert=80,
+        published_at=now - timedelta(days=10),
+        first_seen_at=now,
+    )
+    old_event.analyzed_run_id = run.id
+    session.commit()
+    result = await DigestService(session, None, now=now).send_digest(run_id=run.id, dry_run=True)
+    text = "\n".join(result.messages)
+    assert "Old article, this run" in text

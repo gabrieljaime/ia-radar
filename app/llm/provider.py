@@ -56,7 +56,7 @@ class OpenAICompatibleLLMProvider:
         self.llm_429_retries = 0
 
     async def analyze_article(
-        self, candidate: Candidate, profiles: list[ProfileConfig]
+        self, candidate: Candidate, profiles: list[ProfileConfig], *, retry: bool = False
     ) -> ArticleAnalysis:
         self.last_usage = LLMUsage()
         profile_data = [
@@ -138,7 +138,10 @@ class OpenAICompatibleLLMProvider:
                 "type": "json_schema",
                 "json_schema": {"name": "article_analysis", "strict": True, "schema": schema},
             },
-            "temperature": 0,
+            # A factual-anchor retry reuses this exact prompt, so temperature 0 would
+            # deterministically reproduce the same (rejected) subject_name. Retries use a
+            # nonzero temperature to give the anchor check a genuine second sample.
+            "temperature": 0.3 if retry else 0,
         }
         self.last_rate_limit_wait_seconds = 0.0
         for attempt in range(self.max_retries + 1):

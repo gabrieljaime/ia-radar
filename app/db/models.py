@@ -58,6 +58,11 @@ class Event(Base):
     event_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     normalized_title: Mapped[str] = mapped_column(String(1000), index=True)
     title: Mapped[str] = mapped_column(String(1000))
+    # The LLM's own identification of the subject. Only anchor-verified (guaranteed
+    # to match a collector-extracted exact_model_id) when the source candidate had
+    # one set; otherwise it is the LLM's unverified naming, still useful but not a
+    # guaranteed-correct identifier.
+    subject_name: Mapped[str | None] = mapped_column(String(500))
     summary: Mapped[str | None] = mapped_column(Text)
     what_happened: Mapped[str | None] = mapped_column(Text)
     why_it_matters: Mapped[str | None] = mapped_column(Text)

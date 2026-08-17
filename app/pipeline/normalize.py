@@ -6,7 +6,17 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from app.domain.models import Candidate, DiscardReason
 
 _TRACKING_PARAMS = {"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "source"}
-_ARTIFACT_VARIANTS = ("fp8", "bf16", "gguf", "awq", "gptq", "int8")
+_TUNE_VARIANTS = ("instruct", "chat", "base")
+_MODEL_FAMILY_PATTERN = re.compile(
+    r"(?i)\b(qwen|glm|deepseek)[\s_-]*([0-9]+(?:\.[0-9]+)*)"
+    r"(?:[\s_-]+([0-9]+(?:\.[0-9]+)?[bt](?:[\s_-]+a[0-9]+b)?))?"
+    r"(?:[\s_-]+([a-z][a-z0-9]*))?"
+)
+_COMMAND_FAMILY_PATTERN = re.compile(
+    r"(?i)\b(command)[\s_-]+(a|r\+|r)(?!\w)"
+    r"(?:[\s_-]+(vision|reasoning|[0-9]+b))?"
+    r"(?:[\s_-]+([a-z][a-z0-9]*))?"
+)
 
 
 def normalize_title(title: str) -> str:
@@ -14,23 +24,28 @@ def normalize_title(title: str) -> str:
 
 
 def base_model_identity(value: str) -> str | None:
-    """Return a conservative family identity for known model-shaped identifiers."""
+    """Return a conservative family identity for known model-shaped identifiers.
+
+    Quantization/artifact qualifiers (FP8, GGUF, ...) are ignored so those
+    releases collapse into one identity. Tuning qualifiers (Instruct, Chat,
+    Base) are distinct, newsworthy releases, so they stay separate
+    identities instead of collapsing into the base model's identity.
+    """
     compact = re.sub(r"(?i)new model repository:\s*[^/]+/", "", html.unescape(value))
-    match = re.search(
-        r"(?i)\b(qwen|glm|deepseek)[\s_-]*([0-9]+(?:\.[0-9]+)*)"
-        r"(?:[\s_-]+([0-9]+(?:\.[0-9]+)?[bt](?:[\s_-]+a[0-9]+b)?))?",
-        compact,
-    )
-    if not match:
-        return None
-    parts = [part.lower().replace(" ", "-").replace("_", "-") for part in match.groups() if part]
-    identity = "-".join(parts)
-    identity = re.sub(rf"-(?:{'|'.join(_ARTIFACT_VARIANTS)})$", "", identity)
+    match = _MODEL_FAMILY_PATTERN.search(compact)
+    if match:
+        vendor, version, size, qualifier = match.groups()
+        parts = [vendor, version, size]
+    else:
+        match = _COMMAND_FAMILY_PATTERN.search(compact)
+        if not match:
+            return None
+        vendor, variant, subvariant, qualifier = match.groups()
+        parts = [vendor, variant, subvariant]
+    identity = "-".join(part.lower().replace(" ", "-").replace("_", "-") for part in parts if part)
+    if qualifier and qualifier.lower() in _TUNE_VARIANTS:
+        identity = f"{identity}-{qualifier.lower()}"
     return identity
-
-
-def strip_artifact_variant(model_id: str) -> str:
-    return re.sub(rf"(?i)(?:[-_](?:{'|'.join(_ARTIFACT_VARIANTS)}))$", "", model_id.strip())
 
 
 def canonicalize_url(url: str) -> str:

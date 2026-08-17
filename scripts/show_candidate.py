@@ -30,6 +30,7 @@ def main() -> int:
             "title": article.title if article else record.title,
             "url": article.canonical_url if article else record.canonical_url,
             "published_at": article.published_at if article else None,
+            "source_last_modified_at": article.source_last_modified_at if article else None,
             "first_seen_at": article.discovered_at if article else record.discovered_at,
             "raw_summary": article.summary_raw if article else None,
             "event_id": event.id if event else record.event_id,

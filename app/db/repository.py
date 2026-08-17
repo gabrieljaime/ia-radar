@@ -258,10 +258,16 @@ class RadarRepository:
 
         cutoff = datetime.now(UTC) - timedelta(days=14)
         events = self.session.scalars(select(Event).where(Event.first_seen_at >= cutoff)).all()
-        candidate_model = base_model_identity(candidate.exact_model_id or candidate.title)
+        candidate_model = (
+            base_model_identity(candidate.exact_model_id) if candidate.exact_model_id else None
+        )
         if candidate_model:
             model_match = next(
-                (event for event in events if base_model_identity(event.title) == candidate_model),
+                (
+                    event
+                    for event in events
+                    if base_model_identity(event.subject_name or event.title) == candidate_model
+                ),
                 None,
             )
             if model_match is not None:
@@ -342,6 +348,7 @@ class RadarRepository:
         event = self.session.get(Event, event_id)
         if event is None:
             raise LookupError(f"Unknown event: {event_id}")
+        event.subject_name = analysis.subject_name
         event.summary = analysis.summary
         event.what_happened = analysis.what_happened
         event.why_it_matters = analysis.why_it_matters

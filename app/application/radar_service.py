@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 
 from app.alerts.base import AlertChannel
 from app.alerts.formatting import format_telegram_alert
@@ -18,14 +19,20 @@ from app.profiles.models import ProfileConfig
 logger = logging.getLogger(__name__)
 
 
+def _normalize_anchor(value: str) -> str:
+    value = value.casefold().strip().rsplit("/", 1)[-1]
+    return re.sub(r"[^a-z0-9+]+", "-", value).strip("-")
+
+
 def validate_factual_anchors(candidate, analysis) -> None:
     if not candidate.exact_model_id:
         return
-    expected = candidate.exact_model_id.casefold().strip()
-    returned = analysis.subject_name.casefold().strip()
-    if returned not in {expected, expected.rsplit("/", 1)[-1]}:
+    expected = _normalize_anchor(candidate.exact_model_id)
+    returned = _normalize_anchor(analysis.subject_name)
+    if returned != expected:
         raise StructuredOutputError(
-            f"LLM subject_name contradicts exact_model_id {candidate.exact_model_id}"
+            f"LLM subject_name {analysis.subject_name!r} contradicts exact_model_id "
+            f"{candidate.exact_model_id!r}"
         )
 
 
@@ -149,7 +156,9 @@ class RadarService:
             for factual_attempt in range(2):
                 result.llm_calls += 1
                 try:
-                    analysis = await self.llm.analyze_article(candidate, self.enabled_profiles)
+                    analysis = await self.llm.analyze_article(
+                        candidate, self.enabled_profiles, retry=factual_attempt > 0
+                    )
                 finally:
                     usage = self.llm.last_usage
                     result.input_tokens += usage.input_tokens
@@ -159,12 +168,14 @@ class RadarService:
                     validate_factual_anchors(candidate, analysis)
                     break
                 except StructuredOutputError:
+                    log_extra = {
+                        "exact_model_id": candidate.exact_model_id,
+                        "returned_subject_name": analysis.subject_name,
+                    }
                     if factual_attempt == 1:
+                        logger.warning("analysis_factual_anchor_rejected", extra=log_extra)
                         raise
-                    logger.warning(
-                        "analysis_factual_anchor_retry",
-                        extra={"exact_model_id": candidate.exact_model_id},
-                    )
+                    logger.warning("analysis_factual_anchor_retry", extra=log_extra)
             assert analysis is not None
             waited = getattr(self.llm, "last_rate_limit_wait_seconds", 0.0)
             if waited:
@@ -184,7 +195,7 @@ class RadarService:
         except (LLMRequestError, StructuredOutputError, ValueError) as error:
             self.repository.mark_analysis_failed(stored.candidate_record_id, stored.event_id)
             result.record_discard(DiscardReason.ANALYSIS_FAILED)
-            result.errors.append(f"analysis: {type(error).__name__}")
+            result.errors.append(f"analysis: {type(error).__name__}: {error}")
             return
 
         scores = calculate_scores(analysis, candidate.source_trust, candidate.source_is_primary)

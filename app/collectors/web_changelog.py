@@ -255,7 +255,7 @@ def parse_cohere(html: str, base_url: str) -> list[dict]:
             except ValueError:
                 continue
         model_match = re.search(
-            r"(?i)\b(Command\s+(?:A(?:\s+(?:Vision|Reasoning))?|R(?:\s+\d+B)?))\b",
+            r"(?i)\b(Command\s+(?:A(?:\s+(?:Vision|Reasoning))?|R\+|R(?:\s+\d+B)?))(?!\w)",
             match["title"],
         )
         items.append(
