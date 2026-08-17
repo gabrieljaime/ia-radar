@@ -33,6 +33,7 @@ class Source(Base):
     base_url: Mapped[str] = mapped_column(String(2000))
     trust_level: Mapped[int] = mapped_column(Integer)
     is_primary: Mapped[bool] = mapped_column(Boolean)
+    requires_primary_verification: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -47,6 +48,13 @@ class Event(Base):
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     analyzed_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("pipeline_runs.id"), index=True)
+    origin_article_id: Mapped[UUID | None] = mapped_column(ForeignKey("articles.id"))
+    analysis_article_id: Mapped[UUID | None] = mapped_column(ForeignKey("articles.id"))
+    primary_source_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    primary_source_url: Mapped[str | None] = mapped_column(String(2000))
+    evidence_upgrade_reason: Mapped[str | None] = mapped_column(String(100))
+    last_evidence_upgrade_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    analysis_count: Mapped[int] = mapped_column(Integer, default=0)
     event_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     normalized_title: Mapped[str] = mapped_column(String(1000), index=True)
     title: Mapped[str] = mapped_column(String(1000))
@@ -64,7 +72,9 @@ class Event(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    articles: Mapped[list["Article"]] = relationship(back_populates="event")
+    articles: Mapped[list["Article"]] = relationship(
+        back_populates="event", foreign_keys="Article.event_id"
+    )
 
 
 class Article(Base):
@@ -84,7 +94,7 @@ class Article(Base):
     discard_reason: Mapped[str | None] = mapped_column(String(40), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    event: Mapped[Event] = relationship(back_populates="articles")
+    event: Mapped[Event] = relationship(back_populates="articles", foreign_keys=[event_id])
 
 
 class CandidateRecord(Base):

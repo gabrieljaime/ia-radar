@@ -18,8 +18,13 @@ class RSSSourceConfig(BaseModel):
     requires_primary_verification: bool = False
 
 
+class WebChangelogSourceConfig(RSSSourceConfig):
+    parser: str
+
+
 class SourcesConfig(BaseModel):
     rss: list[RSSSourceConfig]
+    web_changelog: list[WebChangelogSourceConfig] = Field(default_factory=list)
 
 
 class Settings(BaseSettings):

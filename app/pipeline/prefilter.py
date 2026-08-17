@@ -13,7 +13,25 @@ _BROAD_AI_SIGNALS = {
     "machine learning",
     "model",
     "multimodal",
+    "new model",
+    "model release",
+    "new generation",
+    "frontier model",
+    "open weights",
+    "api release",
+    "breaking change",
+    "reasoning",
+    "tool calling",
+    "computer use",
+    "context window",
+    "embedding",
+    "inference",
+    "deprecation",
+    "general availability",
+    "preview",
 }
+
+_LOW_VALUE_UPDATE_SIGNALS = {"documentation", "docs update", "typo", "minor fix"}
 
 
 def prefilter(
@@ -34,6 +52,10 @@ def prefilter(
     if candidate.source_trust < 40:
         return DiscardReason.LOW_TRUST
     text = f"{candidate.normalized_title} {candidate.summary.lower()}".replace("_", " ")
+    if candidate.source_type == "web_changelog" and any(
+        signal in text for signal in _LOW_VALUE_UPDATE_SIGNALS
+    ):
+        return DiscardReason.LOW_RELEVANCE
     weighted_matches = 0.0
     for profile in profiles:
         weighted_matches += sum(

@@ -65,6 +65,13 @@ Para validar feeds sin LLM ni Telegram:
 python scripts/check_feeds.py
 ```
 
+Para validar juntas todas las fuentes RSS y `web_changelog`, incluyendo estado HTTP,
+cantidad de entradas, fecha más reciente y estado de parsing, sin llamar al LLM:
+
+```bash
+python scripts/check_sources.py
+```
+
 Para inspeccionar y calibrar la última corrida persistida, sin consumir llamadas LLM ni acceder
 a servicios externos:
 
@@ -114,7 +121,12 @@ curl http://localhost:8000/ready
 
 ## Fuentes y perfiles dinámicos
 
-- `config/sources.yaml` contiene ocho feeds oficiales configurables.
+- `config/sources.yaml` agrupa fuentes configurables por tipo: `rss` y `web_changelog`.
+- Las fuentes `web_changelog` usan parsers HTML pequeños y específicos; cada entrada se convierte
+  en un `Candidate` independiente y la URL canónica existente conserva la idempotencia entre corridas.
+- Para agregar una fuente RSS se agrega una entrada bajo `rss`. Para un changelog se agrega bajo
+  `web_changelog` con `parser`, `enabled`, `trust_level`, `is_primary` y, cuando corresponda,
+  `requires_primary_verification`.
 - Cada YAML dentro de `config/profiles/` define un perfil con `slug`, `name`, `icon`,
   `description`, señales gratuitas y `enabled`.
 - Agregar una fuente o tema no requiere cambios de código; la configuración se valida al cargarla.

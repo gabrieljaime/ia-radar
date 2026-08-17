@@ -57,5 +57,7 @@ class RSSCollector:
             url=str(getattr(entry, "link", "")).strip(),
             summary=str(getattr(entry, "summary", "")).strip(),
             published_at=published_at,
+            source_type="rss",
+            source_requires_primary_verification=source.requires_primary_verification,
             external_id=getattr(entry, "id", None),
         )

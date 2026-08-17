@@ -31,12 +31,19 @@ def format_telegram_alert(
         f"• {html.escape(profile_configs[item.profile].name)}: {html.escape(item.reason)}"
         for item in analysis.profiles
     )
+    source_label = (
+        "Fuente primaria: sí"
+        if candidate.source_is_primary
+        else "Fuente secundaria — pendiente de verificación primaria"
+        if candidate.source_requires_primary_verification
+        else "Fuente primaria: no"
+    )
     return (
         f"🔥 <b>AI RADAR — {top_score}/100</b>\n\n"
         f"<b>{html.escape(candidate.title)}</b>\n"
         f"Confidence: {analysis.confidence:.2f}\n"
         f"Hype: {analysis.hype_probability:.2f}\n"
-        f"Fuente primaria: {'sí' if candidate.source_is_primary else 'no'}\n\n"
+        f"{source_label}\n\n"
         f"{profile_lines}\n\n"
         f"<b>QUÉ PASÓ</b>\n{html.escape(analysis.what_happened)}\n\n"
         f"<b>POR QUÉ IMPORTA</b>\n{html.escape(analysis.why_it_matters)}\n\n"

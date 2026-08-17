@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from rapidfuzz.fuzz import ratio
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,9 +25,41 @@ from app.profiles.models import ProfileConfig
 
 
 class RadarRepository:
+    _ADVISORY_LOCK_KEY = 4_204_241_337
+
     def __init__(self, session: Session, title_threshold: float = 88.0):
         self.session = session
         self.title_threshold = title_threshold
+        self._lock_connection = None
+
+    def try_acquire_run_lock(self) -> bool:
+        bind = self.session.get_bind()
+        if bind.dialect.name != "postgresql":
+            return True
+        connection = bind.connect()
+        acquired = bool(
+            connection.scalar(
+                text("SELECT pg_try_advisory_lock(:key)"),
+                {"key": self._ADVISORY_LOCK_KEY},
+            )
+        )
+        if acquired:
+            self._lock_connection = connection
+        else:
+            connection.close()
+        return acquired
+
+    def release_run_lock(self) -> None:
+        if self._lock_connection is None:
+            return
+        try:
+            self._lock_connection.execute(
+                text("SELECT pg_advisory_unlock(:key)"),
+                {"key": self._ADVISORY_LOCK_KEY},
+            )
+        finally:
+            self._lock_connection.close()
+            self._lock_connection = None
 
     def start_run(self) -> PipelineRun:
         run = PipelineRun()
@@ -75,16 +107,20 @@ class RadarRepository:
 
         event = self._matching_event(candidate)
         is_new_event = event is None
+        upgrade_reason = None
         if event is None:
             event = Event(
                 event_hash=hashlib.sha256(candidate.normalized_title.encode()).hexdigest(),
                 normalized_title=candidate.normalized_title,
                 title=candidate.title,
+                primary_source_verified=candidate.source_is_primary,
+                primary_source_url=candidate.canonical_url if candidate.source_is_primary else None,
             )
             self.session.add(event)
             self.session.flush()
         else:
             event.last_seen_at = datetime.now(UTC)
+            upgrade_reason = self._evidence_upgrade_reason(event, candidate)
 
         source = self._upsert_source(candidate)
         article = Article(
@@ -97,15 +133,29 @@ class RadarRepository:
             summary_raw=candidate.summary,
             published_at=candidate.published_at,
             content_hash=candidate.content_hash,
-            status="duplicate" if not is_new_event else "new",
-            discard_reason=DiscardReason.DUPLICATE.value if not is_new_event else None,
+            status="new"
+            if is_new_event
+            else ("evidence_upgrade" if upgrade_reason else "duplicate"),
+            discard_reason=(
+                DiscardReason.DUPLICATE.value if not is_new_event and not upgrade_reason else None
+            ),
         )
         self.session.add(article)
         self.session.flush()
         record.article_id = article.id
         record.event_id = event.id
-        record.status = "discarded" if not is_new_event else "accepted"
-        record.discard_reason = DiscardReason.DUPLICATE.value if not is_new_event else None
+        if is_new_event:
+            event.origin_article_id = article.id
+        if source.is_primary:
+            event.primary_source_verified = True
+            event.primary_source_url = candidate.canonical_url
+        if upgrade_reason:
+            event.evidence_upgrade_reason = upgrade_reason
+            event.last_evidence_upgrade_at = datetime.now(UTC)
+        record.status = "accepted" if is_new_event or upgrade_reason else "discarded"
+        record.discard_reason = (
+            DiscardReason.DUPLICATE.value if not is_new_event and not upgrade_reason else None
+        )
         try:
             self.session.commit()
         except IntegrityError:
@@ -129,7 +179,43 @@ class RadarRepository:
             return StoredCandidate(
                 retry_record.id, existing.id, existing.event_id, candidate, False, False
             )
-        return StoredCandidate(record.id, article.id, event.id, candidate, True, is_new_event)
+        return StoredCandidate(
+            record.id,
+            article.id,
+            event.id,
+            candidate,
+            True,
+            is_new_event,
+            should_reanalyze=bool(upgrade_reason),
+            evidence_upgrade_reason=upgrade_reason,
+        )
+
+    def _evidence_upgrade_reason(self, event: Event, candidate: Candidate) -> str | None:
+        if event.status == "pending":
+            return "pending_event_new_evidence"
+        if (
+            event.discard_reason == DiscardReason.ANALYSIS_FAILED.value
+            and candidate.source_is_primary
+        ):
+            return "retry_failed_with_primary"
+        best_source = self.session.scalar(
+            select(Source)
+            .join(Article, Article.source_id == Source.id)
+            .where(Article.event_id == event.id)
+            .order_by(Source.is_primary.desc(), Source.trust_level.desc())
+            .limit(1)
+        )
+        if best_source is None:
+            return "first_material_evidence"
+        if candidate.source_is_primary and not event.primary_source_verified:
+            return "primary_source_discovered"
+        if candidate.source_trust >= best_source.trust_level + 10:
+            return "higher_trust_source"
+        if event.confidence < 0.6 and (
+            candidate.source_is_primary or candidate.source_trust > best_source.trust_level
+        ):
+            return "low_confidence_better_evidence"
+        return None
 
     def _matching_event(self, candidate: Candidate) -> Event | None:
         # Very short boilerplate summaries (for example "Read more") are not reliable content.
@@ -154,19 +240,26 @@ class RadarRepository:
     def _upsert_source(self, candidate: Candidate) -> Source:
         source = self.session.scalar(
             select(Source).where(
-                Source.source_type == "rss", Source.base_url == candidate.source_url
+                Source.source_type == candidate.source_type,
+                Source.base_url == candidate.source_url,
             )
         )
         if source is None:
             source = Source(
                 name=candidate.source_name,
-                source_type="rss",
+                source_type=candidate.source_type,
                 base_url=candidate.source_url,
                 trust_level=candidate.source_trust,
                 is_primary=candidate.source_is_primary,
+                requires_primary_verification=candidate.source_requires_primary_verification,
             )
             self.session.add(source)
             self.session.flush()
+        else:
+            source.name = candidate.source_name
+            source.trust_level = candidate.source_trust
+            source.is_primary = candidate.source_is_primary
+            source.requires_primary_verification = candidate.source_requires_primary_verification
         return source
 
     def sync_profiles(self, profiles: list[ProfileConfig]) -> dict[str, Profile]:
@@ -202,6 +295,8 @@ class RadarRepository:
         self,
         run_id: UUID,
         event_id: UUID,
+        article_id: UUID,
+        evidence_upgrade_reason: str | None,
         analysis: ArticleAnalysis,
         profiles: dict[str, Profile],
         final_scores: dict[str, int],
@@ -218,6 +313,11 @@ class RadarRepository:
         event.confidence = analysis.confidence
         event.hype_probability = analysis.hype_probability
         event.analyzed_run_id = run_id
+        event.analysis_article_id = article_id
+        event.analysis_count += 1
+        if evidence_upgrade_reason:
+            event.evidence_upgrade_reason = evidence_upgrade_reason
+            event.last_evidence_upgrade_at = datetime.now(UTC)
         event.status = "analyzed"
         for evaluation in analysis.profiles:
             profile = profiles.get(evaluation.profile)

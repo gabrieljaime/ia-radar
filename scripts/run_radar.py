@@ -9,7 +9,9 @@ import httpx
 from app.alerts.dry_run import DryRunAlertChannel
 from app.alerts.telegram import TelegramAlertChannel
 from app.application.radar_service import RadarService
+from app.collectors.composite import CompositeCollector
 from app.collectors.rss import RSSCollector
+from app.collectors.web_changelog import WebChangelogCollector
 from app.core.config import get_settings, load_sources
 from app.core.logging import configure_logging
 from app.db.repository import RadarRepository
@@ -38,7 +40,12 @@ async def main(dry_run: bool = False) -> int:
     profiles = load_profiles(settings.config_dir / "profiles")
     session_factory = create_session_factory(settings.database_url)
     async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as http_client:
-        collector = RSSCollector(sources.rss, http_client)
+        collector = CompositeCollector(
+            [
+                RSSCollector(sources.rss, http_client),
+                WebChangelogCollector(sources.web_changelog, http_client),
+            ]
+        )
         llm = None
         if settings.llm_api_key:
             llm = OpenAICompatibleLLMProvider(
@@ -93,6 +100,7 @@ async def main(dry_run: bool = False) -> int:
                 ),
                 "errors": result.errors,
                 "dry_run": dry_run,
+                "skipped": result.skipped,
             }
         )
     )

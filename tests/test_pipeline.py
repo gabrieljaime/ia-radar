@@ -12,17 +12,57 @@ from app.llm.base import LLMUsage
 from app.llm.provider import LLMRequestError, StructuredOutputError
 
 
-def candidate(title="Model X adds tool calling for AI agents", url="https://example.com/model-x"):
+def candidate(
+    title="Model X adds tool calling for AI agents",
+    url="https://example.com/model-x",
+    *,
+    trust=100,
+    primary=True,
+    source_name="Official",
+    requires_primary_verification=False,
+):
     return Candidate(
-        source_name="Official",
-        source_url="https://example.com/feed",
-        source_trust=100,
-        source_is_primary=True,
+        source_name=source_name,
+        source_url=f"https://{source_name.lower().replace(' ', '-')}.example/feed",
+        source_trust=trust,
+        source_is_primary=primary,
         title=title,
         url=url,
         summary="Structured output, agent evaluation, tool calling and human oversight.",
         published_at=datetime.now(UTC),
+        source_requires_primary_verification=requires_primary_verification,
     )
+
+
+async def test_run_skips_cleanly_when_advisory_lock_is_busy(
+    repository, profiles, analysis, monkeypatch
+):
+    collector = StaticCollector([candidate()])
+    llm = StaticLLM(analysis)
+    monkeypatch.setattr(repository, "try_acquire_run_lock", lambda: False)
+    result = await RadarService(collector, llm, repository, profiles, RecordingChannel()).run()
+    assert result.skipped is True
+    assert result.run_id is None
+    assert llm.calls == 0
+
+
+async def test_advisory_lock_is_released_when_collection_fails(repository, profiles, monkeypatch):
+    released = False
+
+    class FailingCollector:
+        errors = []
+
+        async def collect(self):
+            raise RuntimeError("collector failed")
+
+    def release():
+        nonlocal released
+        released = True
+
+    monkeypatch.setattr(repository, "release_run_lock", release)
+    with pytest.raises(RuntimeError, match="collector failed"):
+        await RadarService(FailingCollector(), None, repository, profiles, RecordingChannel()).run()
+    assert released is True
 
 
 async def test_pipeline_is_idempotent_and_sends_one_alert(repository, session, profiles, analysis):
@@ -295,3 +335,95 @@ async def test_alert_score_above_threshold_can_alert(repository, profiles, analy
         StaticCollector([candidate()]), StaticLLM(analysis), repository, profiles, channel
     ).run()
     assert len(channel.messages) == 1
+
+
+async def test_secondary_to_primary_upgrades_evidence_and_reanalyzes_once(
+    repository, session, profiles, analysis
+):
+    llm = StaticLLM(analysis)
+    secondary = candidate(
+        url="https://secondary.example/model-x",
+        trust=85,
+        primary=False,
+        source_name="Secondary",
+        requires_primary_verification=True,
+    )
+    await RadarService(
+        StaticCollector([secondary]), llm, repository, profiles, RecordingChannel()
+    ).run()
+    official = candidate(
+        url="https://official.example/model-x", source_name="Official", trust=100, primary=True
+    )
+    result = await RadarService(
+        StaticCollector([official]), llm, repository, profiles, RecordingChannel()
+    ).run()
+    event = session.scalar(select(Event))
+    assert result.analyzed == 1
+    assert llm.calls == 2
+    assert event.analysis_count == 2
+    assert event.primary_source_verified is True
+    assert event.primary_source_url == "https://official.example/model-x"
+    assert event.evidence_upgrade_reason == "primary_source_discovered"
+    assert event.origin_article_id != event.analysis_article_id
+
+
+async def test_equal_trust_duplicate_does_not_reanalyze(repository, session, profiles, analysis):
+    llm = StaticLLM(analysis)
+    first = candidate(url="https://one.example/model-x", trust=85, primary=False, source_name="One")
+    second = candidate(
+        url="https://two.example/model-x", trust=85, primary=False, source_name="Two"
+    )
+    await RadarService(
+        StaticCollector([first]), llm, repository, profiles, RecordingChannel()
+    ).run()
+    result = await RadarService(
+        StaticCollector([second]), llm, repository, profiles, RecordingChannel()
+    ).run()
+    assert llm.calls == 1
+    assert result.discarded == {"duplicate": 1}
+    assert session.scalar(select(Event)).analysis_count == 1
+
+
+async def test_mirror_alone_is_not_primary_verified(repository, session, profiles, analysis):
+    mirror = candidate(
+        trust=65,
+        primary=False,
+        source_name="Mirror",
+        requires_primary_verification=True,
+    )
+    await RadarService(
+        StaticCollector([mirror]),
+        StaticLLM(analysis),
+        repository,
+        profiles,
+        RecordingChannel(),
+    ).run()
+    event = session.scalar(select(Event))
+    assert event.primary_source_verified is False
+    assert event.primary_source_url is None
+
+
+async def test_failed_event_can_retry_once_with_primary_evidence(
+    repository, session, profiles, analysis
+):
+    secondary = candidate(
+        url="https://secondary.example/model-x",
+        trust=85,
+        primary=False,
+        source_name="Secondary",
+    )
+    await RadarService(
+        StaticCollector([secondary]), InvalidLLM(), repository, profiles, RecordingChannel()
+    ).run()
+    llm = StaticLLM(analysis)
+    official = candidate(
+        url="https://official.example/model-x", trust=100, primary=True, source_name="Official"
+    )
+    result = await RadarService(
+        StaticCollector([official]), llm, repository, profiles, RecordingChannel()
+    ).run()
+    event = session.scalar(select(Event))
+    assert result.analyzed == 1
+    assert llm.calls == 1
+    assert event.status == "analyzed"
+    assert event.analysis_count == 1

@@ -27,6 +27,8 @@ class Candidate:
     url: str
     summary: str
     published_at: datetime | None
+    source_type: str = "rss"
+    source_requires_primary_verification: bool = False
     external_id: str | None = None
     canonical_url: str = ""
     normalized_title: str = ""
@@ -42,11 +44,14 @@ class StoredCandidate:
     candidate: Candidate
     is_new_article: bool
     is_new_event: bool
+    should_reanalyze: bool = False
+    evidence_upgrade_reason: str | None = None
 
 
 @dataclass(slots=True)
 class PipelineResult:
-    run_id: UUID
+    run_id: UUID | None
+    skipped: bool = False
     collected: int = 0
     analyzed: int = 0
     alerts_sent: int = 0

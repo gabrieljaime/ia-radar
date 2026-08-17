@@ -45,40 +45,46 @@ class RadarService:
         self.alert_confidence_threshold = alert_confidence_threshold
 
     async def run(self) -> PipelineResult:
-        run = self.repository.start_run()
-        result = PipelineResult(run_id=run.id)
-        profile_rows = self.repository.sync_profiles(self.profiles)
+        if not self.repository.try_acquire_run_lock():
+            logger.info("radar_run_skipped_already_running")
+            return PipelineResult(run_id=None, skipped=True)
         try:
-            candidates = await self.collector.collect()
-            result.collected = len(candidates)
-            result.errors.extend(getattr(self.collector, "errors", []))
-            for raw_candidate in candidates:
-                try:
-                    await self._process_candidate(raw_candidate, profile_rows, result)
-                except Exception as error:  # isolate one candidate from the rest of the run
-                    logger.exception(
-                        "candidate_processing_failed",
-                        extra={"run_id": str(run.id), "error_type": type(error).__name__},
-                    )
-                    result.errors.append(f"candidate: {type(error).__name__}")
+            run = self.repository.start_run()
+            result = PipelineResult(run_id=run.id)
+            profile_rows = self.repository.sync_profiles(self.profiles)
+            try:
+                candidates = await self.collector.collect()
+                result.collected = len(candidates)
+                result.errors.extend(getattr(self.collector, "errors", []))
+                for raw_candidate in candidates:
+                    try:
+                        await self._process_candidate(raw_candidate, profile_rows, result)
+                    except Exception as error:  # isolate one candidate from the rest of the run
+                        logger.exception(
+                            "candidate_processing_failed",
+                            extra={"run_id": str(run.id), "error_type": type(error).__name__},
+                        )
+                        result.errors.append(f"candidate: {type(error).__name__}")
+            finally:
+                self.repository.finish_run(result)
+                logger.info(
+                    "radar_run_completed",
+                    extra={
+                        "run_id": str(run.id),
+                        "articles_found": result.collected,
+                        "articles_analyzed": result.analyzed,
+                        "alerts_sent": result.alerts_sent,
+                        "llm_calls": result.llm_calls,
+                        "input_tokens": result.input_tokens,
+                        "output_tokens": result.output_tokens,
+                        "estimated_cost_usd": round(result.estimated_cost_usd, 6),
+                        "discarded": result.discarded,
+                        "errors": len(result.errors),
+                    },
+                )
+            return result
         finally:
-            self.repository.finish_run(result)
-            logger.info(
-                "radar_run_completed",
-                extra={
-                    "run_id": str(run.id),
-                    "articles_found": result.collected,
-                    "articles_analyzed": result.analyzed,
-                    "alerts_sent": result.alerts_sent,
-                    "llm_calls": result.llm_calls,
-                    "input_tokens": result.input_tokens,
-                    "output_tokens": result.output_tokens,
-                    "estimated_cost_usd": round(result.estimated_cost_usd, 6),
-                    "discarded": result.discarded,
-                    "errors": len(result.errors),
-                },
-            )
-        return result
+            self.repository.release_run_lock()
 
     async def _process_candidate(self, candidate, profile_rows, result: PipelineResult) -> None:
         candidate = normalize_candidate(candidate)
@@ -90,6 +96,9 @@ class RadarService:
             result.record_discard(DiscardReason.ALREADY_SEEN)
             return
         if not stored.is_new_event:
+            if stored.should_reanalyze and self.llm is not None:
+                await self._analyze(stored, candidate, profile_rows, result)
+                return
             result.record_discard(DiscardReason.DUPLICATE)
             return
 
@@ -142,7 +151,13 @@ class RadarService:
 
         scores = calculate_scores(analysis, candidate.source_trust, candidate.source_is_primary)
         self.repository.save_analysis(
-            result.run_id, stored.event_id, analysis, profile_rows, scores
+            result.run_id,
+            stored.event_id,
+            stored.article_id,
+            stored.evidence_upgrade_reason,
+            analysis,
+            profile_rows,
+            scores,
         )
         result.analyzed += 1
 

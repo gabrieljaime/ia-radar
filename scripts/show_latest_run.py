@@ -146,11 +146,11 @@ def _details(events: list[DisplayEvent]) -> list[str]:
                 f"CONFIDENCE:\n{item.event.confidence:.2f}",
                 f"HYPE:\n{item.event.hype_probability:.2f}",
                 "PRIMARY_SOURCE_VERIFIED:\n"
-                + ("yes" if item.source and item.source.is_primary else "no"),
+                + ("yes" if item.event.primary_source_verified else "no"),
             ]
         )
-        if item.source and item.source.is_primary and item.article:
-            lines.append(f"PRIMARY_SOURCE_URL:\n{item.article.canonical_url}")
+        if item.event.primary_source_url:
+            lines.append(f"PRIMARY_SOURCE_URL:\n{item.event.primary_source_url}")
         for profile in sorted(item.profiles.values(), key=lambda value: value.name):
             score = item.scores[profile.slug]
             lines.extend(

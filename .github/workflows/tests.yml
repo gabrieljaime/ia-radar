@@ -18,3 +18,32 @@ jobs:
       - run: pytest -q
       - run: ruff check .
       - run: ruff format --check .
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ai_radar_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_radar_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_radar_test
+      TEST_POSTGRES_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_radar_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e '.[dev]'
+      - run: alembic upgrade head
+      - run: pytest -q -m postgres_integration

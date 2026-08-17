@@ -60,3 +60,35 @@ rss:
     trust_level: 65
     is_primary: false
     requires_primary_verification: true
+
+web_changelog:
+  - name: Gemini API Release Notes
+    url: https://ai.google.dev/gemini-api/docs/changelog
+    parser: gemini
+    category: official
+    trust_level: 100
+    is_primary: true
+  - name: Mistral Changelog
+    url: https://docs.mistral.ai/resources/changelogs
+    parser: mistral
+    category: official
+    trust_level: 100
+    is_primary: true
+  - name: xAI Release Notes
+    url: https://docs.x.ai/developers/release-notes
+    parser: xai
+    category: official
+    trust_level: 100
+    is_primary: true
+  - name: Meta AI Blog
+    url: https://ai.meta.com/blog/
+    parser: meta
+    category: official
+    trust_level: 100
+    is_primary: true
+  - name: Anthropic Newsroom
+    url: https://www.anthropic.com/news
+    parser: anthropic
+    category: official
+    trust_level: 100
+    is_primary: true

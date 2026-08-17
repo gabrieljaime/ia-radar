@@ -266,18 +266,23 @@ class DigestService:
         best_action = max(item.scores.values(), key=lambda score: score.actionability_score)
         if best_action.suggested_action:
             lines.extend(["", "<b>💡 Acción:</b>", html.escape(best_action.suggested_action)])
-        if item.article:
-            url = html.escape(item.article.canonical_url, quote=True)
+        best_url = item.event.primary_source_url or (
+            item.article.canonical_url if item.article else None
+        )
+        if best_url:
+            url = html.escape(best_url, quote=True)
             lines.extend(
                 [
                     "",
                     f'<a href="{url}">🔗 Fuente</a>',
                 ]
             )
-        if item.source:
-            lines.append(
-                "✅ Fuente primaria verificada" if item.source.is_primary else "⚠️ Fuente secundaria"
-            )
+        if item.event.primary_source_verified:
+            lines.append("✅ Fuente primaria verificada")
+        elif item.source and item.source.requires_primary_verification:
+            lines.append("⚠️ Fuente secundaria — pendiente de verificación primaria")
+        elif item.source:
+            lines.append("⚠️ Fuente secundaria")
         return "\n".join(lines)
 
     def _top_actions(self, events: list[DigestEvent]) -> list[str]:
