@@ -12,11 +12,16 @@ from app.domain.models import DiscardReason, PipelineResult
 from app.llm.base import LLMProvider
 from app.llm.provider import LLMRequestError, StructuredOutputError
 from app.pipeline.normalize import normalize_candidate
-from app.pipeline.prefilter import prefilter
+from app.pipeline.prefilter import is_outside_lookback, is_primary_bypass, prefilter
 from app.pipeline.score import calculate_scores
 from app.profiles.models import ProfileConfig
 
 logger = logging.getLogger(__name__)
+
+_CONCRETE_IDENTIFIER = re.compile(
+    r"(?i)\b(?:deepseek(?:-ai/)?[-\w.]+|gpt[-\u2010-\u2015][\w.\u2010-\u2015+]+|"
+    r"chatgpt\s+[a-z][\w-]+)\b"
+)
 
 
 def _normalize_anchor(value: str) -> str:
@@ -24,15 +29,48 @@ def _normalize_anchor(value: str) -> str:
     return re.sub(r"[^a-z0-9+]+", "-", value).strip("-")
 
 
+def _concrete_identifiers(value: str) -> set[str]:
+    return {_normalize_anchor(match.group()) for match in _CONCRETE_IDENTIFIER.finditer(value)}
+
+
+def _analysis_text(analysis) -> str:
+    values = [
+        analysis.subject_name,
+        analysis.what_happened,
+        analysis.why_it_matters,
+        analysis.what_changed or "",
+    ]
+    for evaluation in analysis.profiles:
+        values.extend(
+            [
+                evaluation.reason,
+                evaluation.suggested_action or "",
+                " ".join(evaluation.related_topics),
+            ]
+        )
+    return "\n".join(values)
+
+
 def validate_factual_anchors(candidate, analysis) -> None:
-    if not candidate.exact_model_id:
-        return
-    expected = _normalize_anchor(candidate.exact_model_id)
-    returned = _normalize_anchor(analysis.subject_name)
-    if returned != expected:
+    if candidate.exact_model_id:
+        expected = _normalize_anchor(candidate.exact_model_id)
+        returned = _normalize_anchor(analysis.subject_name)
+        if returned != expected:
+            raise StructuredOutputError(
+                f"LLM subject_name {analysis.subject_name!r} contradicts exact_model_id "
+                f"{candidate.exact_model_id!r}"
+            )
+
+    source_text = f"{getattr(candidate, 'title', '')}\n{getattr(candidate, 'summary', '')}"
+    allowed = _concrete_identifiers(source_text)
+    if candidate.exact_model_id:
+        allowed.add(_normalize_anchor(candidate.exact_model_id))
+        allowed.add(_normalize_anchor(candidate.exact_model_id.rsplit("/", 1)[-1]))
+    returned_identifiers = _concrete_identifiers(_analysis_text(analysis))
+    contradictions = returned_identifiers - allowed
+    if allowed and contradictions:
         raise StructuredOutputError(
-            f"LLM subject_name {analysis.subject_name!r} contradicts exact_model_id "
-            f"{candidate.exact_model_id!r}"
+            f"LLM generated concrete identifiers absent from the source: {sorted(contradictions)}"
         )
 
 
@@ -74,6 +112,7 @@ class RadarService:
         prefilter_min_score: int = 20,
         alert_score_threshold: int = 90,
         alert_confidence_threshold: float = 0.75,
+        max_llm_calls_per_run: int = 50,
     ):
         self.collector = collector
         self.llm = llm
@@ -87,6 +126,7 @@ class RadarService:
         self.prefilter_min_score = prefilter_min_score
         self.alert_score_threshold = alert_score_threshold
         self.alert_confidence_threshold = alert_confidence_threshold
+        self.max_llm_calls_per_run = max_llm_calls_per_run
 
     async def run(self) -> PipelineResult:
         if not self.repository.try_acquire_run_lock():
@@ -105,6 +145,8 @@ class RadarService:
                         result.web_articles_sources_fetched += child.metrics["sources_fetched"]
                         result.web_articles_items_found += child.metrics["items_found"]
                 for raw_candidate in candidates:
+                    if result.llm_call_limit_reached:
+                        break
                     try:
                         await self._process_candidate(raw_candidate, profile_rows, result)
                     except Exception as error:  # isolate one candidate from the rest of the run
@@ -123,6 +165,12 @@ class RadarService:
                         "articles_analyzed": result.analyzed,
                         "alerts_sent": result.alerts_sent,
                         "llm_calls": result.llm_calls,
+                        "prefilter_passed": result.prefilter_passed,
+                        "primary_bypass_passed": result.primary_bypass_passed,
+                        "pending_reanalysis": result.pending_reanalysis,
+                        "evidence_reanalysis": result.evidence_reanalysis,
+                        "analysis_retries": result.analysis_retries,
+                        "llm_call_limit_reached": result.llm_call_limit_reached,
                         "input_tokens": result.input_tokens,
                         "output_tokens": result.output_tokens,
                         "estimated_cost_usd": round(result.estimated_cost_usd, 6),
@@ -141,14 +189,25 @@ class RadarService:
             result.candidates_new += 1
         if candidate.source_type == "web_articles" and stored.is_new_article:
             result.web_articles_items_new += 1
+        if is_outside_lookback(candidate, self.lookback_hours):
+            self.repository.mark_too_old(
+                stored.candidate_record_id,
+                stored.article_id,
+                stored.event_id,
+                new_event=stored.is_new_event,
+            )
+            result.record_discard(DiscardReason.TOO_OLD)
+            return
         if not stored.is_new_article:
             if self.llm is not None and self.repository.event_needs_analysis(stored.event_id):
+                result.pending_reanalysis += 1
                 await self._analyze(stored, candidate, profile_rows, result)
                 return
             result.record_discard(DiscardReason.ALREADY_SEEN)
             return
         if not stored.is_new_event:
             if stored.should_reanalyze and self.llm is not None:
+                result.evidence_reanalysis += 1
                 await self._analyze(stored, candidate, profile_rows, result)
                 return
             result.record_discard(DiscardReason.DUPLICATE)
@@ -171,6 +230,8 @@ class RadarService:
             return
 
         result.prefilter_passed += 1
+        if is_primary_bypass(candidate, self.enabled_profiles, self.prefilter_min_score):
+            result.primary_bypass_passed += 1
         if candidate.source_type == "web_articles":
             result.web_articles_prefilter_passed += 1
         await self._analyze(stored, candidate, profile_rows, result)
@@ -180,6 +241,15 @@ class RadarService:
         try:
             analysis = None
             for structured_attempt in range(2):
+                if result.llm_calls >= self.max_llm_calls_per_run:
+                    result.llm_call_limit_reached = True
+                    logger.warning(
+                        "llm_call_limit_reached",
+                        extra={"max_llm_calls_per_run": self.max_llm_calls_per_run},
+                    )
+                    return
+                if structured_attempt:
+                    result.analysis_retries += 1
                 result.llm_calls += 1
                 try:
                     analysis = await self.llm.analyze_article(

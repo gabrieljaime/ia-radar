@@ -86,6 +86,7 @@ async def main(dry_run: bool = False) -> int:
                     prefilter_min_score=settings.prefilter_min_score,
                     alert_score_threshold=settings.alert_score_threshold,
                     alert_confidence_threshold=settings.alert_confidence_threshold,
+                    max_llm_calls_per_run=settings.radar_max_llm_calls_per_run,
                 )
                 result = await service.run()
         finally:
@@ -109,6 +110,11 @@ async def main(dry_run: bool = False) -> int:
                 ),
                 "candidates_new": result.candidates_new,
                 "prefilter_passed": result.prefilter_passed,
+                "primary_bypass_passed": result.primary_bypass_passed,
+                "pending_reanalysis": result.pending_reanalysis,
+                "evidence_reanalysis": result.evidence_reanalysis,
+                "analysis_retries": result.analysis_retries,
+                "llm_call_limit_reached": result.llm_call_limit_reached,
                 "web_articles_sources_fetched": result.web_articles_sources_fetched,
                 "web_articles_items_found": result.web_articles_items_found,
                 "web_articles_items_new": result.web_articles_items_new,

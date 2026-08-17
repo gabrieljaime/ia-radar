@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     radar_lookback_hours: int = Field(default=48, gt=0)
     llm_max_requests_per_minute: int = Field(default=8, gt=0)
     llm_max_retries: int = Field(default=3, ge=0)
+    radar_max_llm_calls_per_run: int = Field(default=50, gt=0)
     output_language: str = "es"
     digest_lookback_hours: int = Field(default=24, gt=0)
     digest_max_items: int = Field(default=10, gt=0)

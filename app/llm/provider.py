@@ -121,6 +121,9 @@ class OpenAICompatibleLLMProvider:
             "and never combine facts from adjacent changelog entries. When exact_model_id is set, "
             "subject_name must reproduce it exactly. If evidence is insufficient, say so rather "
             "than guessing.\n"
+            "Every concrete product or model identifier used anywhere in the response must come "
+            "from this article's title, summary, or exact_model_id. Never substitute a nearby "
+            "release, product, search result, or adjacent feed item.\n"
             f"ENABLED_PROFILES={json.dumps(profile_data)}\n"
             f"<ARTICLE_DATA>{json.dumps(article_data)}</ARTICLE_DATA>"
         )

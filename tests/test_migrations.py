@@ -1,11 +1,19 @@
+import hashlib
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from conftest import StaticCollector, StaticLLM
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
+
+from app.application.radar_service import RadarService
+from app.db.repository import RadarRepository
+from app.domain.models import Candidate
 
 pytestmark = pytest.mark.postgres_integration
 
@@ -129,3 +137,46 @@ def test_fresh_postgres_migration_walk_reaches_head_idempotently(empty_postgres_
         "event_scores",
         "digests",
     } & set(table_names(database_url))
+
+
+async def test_fresh_postgres_backfill_analyzes_only_recent_items(
+    empty_postgres_database, profiles, analysis
+):
+    database_url = empty_postgres_database
+    run_alembic(database_url, "upgrade", "head")
+    now = datetime.now(UTC)
+
+    def item(index: int, published_at: datetime) -> Candidate:
+        identity = hashlib.sha256(str(index).encode()).hexdigest()
+        title = f"{identity} AI agent release"
+        return Candidate(
+            source_name="Bootstrap fixture",
+            source_url="https://fixture.example/feed",
+            source_trust=100,
+            source_is_primary=True,
+            title=title,
+            url=f"https://fixture.example/{index}",
+            summary=f"{title} with tool calling capability {index}",
+            published_at=published_at,
+        )
+
+    candidates = [item(index, now - timedelta(days=365)) for index in range(100)]
+    candidates.extend(item(100 + index, now) for index in range(5))
+    llm = StaticLLM(analysis)
+    engine = create_engine(database_url)
+    try:
+        with Session(engine, expire_on_commit=False) as session:
+            result = await RadarService(
+                StaticCollector(candidates),
+                llm,
+                RadarRepository(session),
+                profiles,
+                None,
+                lookback_hours=48,
+                prefilter_min_score=0,
+            ).run()
+    finally:
+        engine.dispose()
+
+    assert result.discarded["too_old"] == 100
+    assert result.analyzed == result.llm_calls == llm.calls == 5

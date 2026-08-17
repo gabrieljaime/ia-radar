@@ -5,7 +5,7 @@ from conftest import RecordingChannel, StaticCollector, StaticLLM
 from sqlalchemy import func, select
 
 from app.alerts.dry_run import DryRunAlertChannel
-from app.application.radar_service import RadarService
+from app.application.radar_service import RadarService, validate_factual_anchors
 from app.db.models import Alert, Article, CandidateRecord, Event, EventScore, Profile
 from app.domain.models import Candidate
 from app.llm.base import LLMUsage
@@ -37,6 +37,41 @@ def candidate(
         source_type=source_type,
         exact_model_id=exact_model_id,
     )
+
+
+@pytest.mark.parametrize(
+    ("title", "summary", "exact_model_id", "wrong_identifier"),
+    [
+        (
+            "deepseek-ai/DeepSeek-V4-Pro-0813",
+            "Official DeepSeek-V4-Pro-0813 publication.",
+            "deepseek-ai/DeepSeek-V4-Pro-0813",
+            "DeepSeek-V4-Flash-0731",
+        ),
+        (
+            "Introducing ChatGPT Health",
+            "ChatGPT Health securely connects health data.",
+            None,
+            "ChatGPT search",
+        ),
+        (
+            "GPT-5.3-Codex System Card",
+            "GPT-5.3-Codex combines capabilities from GPT-5.2-Codex.",
+            None,
+            "GPT-5.1-Codex-Max",
+        ),
+    ],
+)
+def test_factual_consistency_rejects_identifier_from_another_item(
+    analysis, title, summary, exact_model_id, wrong_identifier
+):
+    item = candidate(title=title, exact_model_id=exact_model_id)
+    item.summary = summary
+    analysis.what_happened = f"Se publicó {wrong_identifier}."
+    if exact_model_id:
+        analysis.subject_name = exact_model_id
+    with pytest.raises(StructuredOutputError, match="absent from the source"):
+        validate_factual_anchors(item, analysis)
 
 
 async def test_run_skips_cleanly_when_advisory_lock_is_busy(
@@ -333,6 +368,50 @@ async def test_pending_event_can_be_analyzed_on_later_run(repository, session, p
     event = session.scalar(select(Event))
     assert result.analyzed == 1
     assert event.status == "analyzed"
+
+
+@pytest.mark.parametrize("source_type", ["rss", "huggingface_models"])
+async def test_old_primary_backfill_is_persisted_without_llm_or_alert(
+    repository, session, profiles, analysis, source_type
+):
+    item = candidate(primary=True, source_type=source_type)
+    item.published_at = datetime(2024, 1, 1, tzinfo=UTC)
+    if source_type == "huggingface_models":
+        item.exact_model_id = "deepseek-ai/DeepSeek-V4-Pro-0813"
+    llm = StaticLLM(analysis)
+    channel = RecordingChannel()
+    result = await RadarService(
+        StaticCollector([item]), llm, repository, profiles, channel, lookback_hours=48
+    ).run()
+    assert session.scalar(select(func.count()).select_from(Article)) == 1
+    assert result.discarded == {"too_old": 1}
+    assert result.llm_calls == llm.calls == result.analyzed == 0
+    assert channel.messages == []
+
+
+async def test_recent_primary_release_is_analyzed_normally(repository, profiles, analysis):
+    llm = StaticLLM(analysis)
+    result = await RadarService(
+        StaticCollector([candidate(primary=True)]), llm, repository, profiles, None
+    ).run()
+    assert result.prefilter_passed == result.analyzed == result.llm_calls == 1
+
+
+async def test_llm_call_cap_stops_run_cleanly(repository, profiles, analysis):
+    items = [
+        candidate(title=title, url=f"https://x/{index}")
+        for index, title in enumerate(
+            ("Agent tool calling Alpha", "RAG embeddings Beta", "AI reasoning model Gamma")
+        )
+    ]
+    for item in items:
+        item.summary = item.title
+    llm = StaticLLM(analysis)
+    result = await RadarService(
+        StaticCollector(items), llm, repository, profiles, None, max_llm_calls_per_run=2
+    ).run()
+    assert result.llm_calls == llm.calls == result.analyzed == 2
+    assert result.llm_call_limit_reached is True
 
 
 async def test_four_profiles_use_one_llm_request(repository, profiles, analysis):

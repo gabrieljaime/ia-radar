@@ -70,6 +70,11 @@ class PipelineResult:
     web_articles_prefilter_passed: int = 0
     candidates_new: int = 0
     prefilter_passed: int = 0
+    primary_bypass_passed: int = 0
+    pending_reanalysis: int = 0
+    evidence_reanalysis: int = 0
+    analysis_retries: int = 0
+    llm_call_limit_reached: bool = False
 
     def record_discard(self, reason: DiscardReason) -> None:
         self.discarded[reason.value] = self.discarded.get(reason.value, 0) + 1

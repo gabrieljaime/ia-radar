@@ -409,6 +409,21 @@ class RadarRepository:
         self._mark_candidate_record(candidate_record_id, reason)
         self.session.commit()
 
+    def mark_too_old(
+        self, candidate_record_id: UUID, article_id: UUID, event_id: UUID, *, new_event: bool
+    ) -> None:
+        article = self.session.get(Article, article_id)
+        if article:
+            article.status = "discarded"
+            article.discard_reason = DiscardReason.TOO_OLD.value
+        if new_event:
+            event = self.session.get(Event, event_id)
+            if event:
+                event.status = "discarded"
+                event.discard_reason = DiscardReason.TOO_OLD.value
+        self._mark_candidate_record(candidate_record_id, DiscardReason.TOO_OLD)
+        self.session.commit()
+
     def _mark_candidate_record(self, record_id: UUID, reason: DiscardReason) -> None:
         record = self.session.get(CandidateRecord, record_id)
         if record:

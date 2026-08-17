@@ -76,6 +76,36 @@ _INFRASTRUCTURE_MAJOR_SIGNALS = {
 }
 
 
+def is_outside_lookback(candidate: Candidate, lookback_hours: int) -> bool:
+    if candidate.published_at is None:
+        return False
+    published_at = candidate.published_at
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=UTC)
+    return published_at.astimezone(UTC) < datetime.now(UTC) - timedelta(hours=lookback_hours)
+
+
+def is_primary_bypass(candidate: Candidate, profiles: list[ProfileConfig], min_score: int) -> bool:
+    text = f"{candidate.normalized_title} {candidate.summary.lower()}".replace("_", " ")
+    weighted_matches = sum(
+        weight
+        for profile in profiles
+        for topic, weight in profile.topics.items()
+        if topic.replace("_", " ") in text
+    ) + sum(
+        weight
+        for profile in profiles
+        for entity, weight in profile.entities.items()
+        if entity.lower().replace("_", " ") in text
+    )
+    return (
+        min(100, round(weighted_matches * 30)) < min_score
+        and candidate.source_is_primary
+        and candidate.source_trust >= 95
+        and any(signal in text for signal in _BROAD_AI_SIGNALS)
+    )
+
+
 def prefilter(
     candidate: Candidate,
     profiles: list[ProfileConfig],
@@ -86,10 +116,7 @@ def prefilter(
         return candidate.discard_reason
     if candidate.published_at is None:
         return DiscardReason.INVALID
-    published_at = candidate.published_at
-    if published_at.tzinfo is None:
-        published_at = published_at.replace(tzinfo=UTC)
-    if published_at.astimezone(UTC) < datetime.now(UTC) - timedelta(hours=lookback_hours):
+    if is_outside_lookback(candidate, lookback_hours):
         return DiscardReason.TOO_OLD
     if candidate.source_trust < 40:
         return DiscardReason.LOW_TRUST
