@@ -20,6 +20,8 @@ def candidate(
     primary=True,
     source_name="Official",
     requires_primary_verification=False,
+    source_type="rss",
+    exact_model_id=None,
 ):
     return Candidate(
         source_name=source_name,
@@ -31,6 +33,8 @@ def candidate(
         summary="Structured output, agent evaluation, tool calling and human oversight.",
         published_at=datetime.now(UTC),
         source_requires_primary_verification=requires_primary_verification,
+        source_type=source_type,
+        exact_model_id=exact_model_id,
     )
 
 
@@ -107,6 +111,31 @@ async def test_similar_articles_become_one_event(repository, session, profiles, 
         )
         == "duplicate"
     )
+
+
+async def test_model_artifact_and_expert_article_become_one_event(
+    repository, session, profiles, analysis
+):
+    base = candidate("Qwen3.8-27B", "https://qwen.example/qwen38")
+    artifact = candidate(
+        "New model repository: Qwen/Qwen3.8-27B-FP8",
+        "https://huggingface.co/Qwen/Qwen3.8-27B-FP8",
+        source_name="Qwen HF",
+        source_type="huggingface_models",
+        exact_model_id="Qwen/Qwen3.8-27B-FP8",
+    )
+    expert = candidate(
+        "Qwen 3.8 27B is excellent",
+        "https://simonwillison.net/qwen-38",
+        source_name="Simon Willison",
+        primary=False,
+    )
+    result = await RadarService(
+        StaticCollector([base, artifact, expert]), StaticLLM(analysis), repository, profiles, None
+    ).run()
+    assert result.analyzed == 1
+    assert session.scalar(select(func.count()).select_from(Event)) == 1
+    assert session.scalar(select(func.count()).select_from(Article)) == 3
 
 
 async def test_same_content_with_different_titles_is_exact_duplicate(

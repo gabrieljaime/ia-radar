@@ -75,6 +75,9 @@ class HuggingFaceModelsCollector:
             source_type="huggingface_models",
             source_requires_primary_verification=source.requires_primary_verification,
             external_id=model_id,
+            exact_model_id=model_id,
+            organization=source.organization,
+            source_last_modified_at=_datetime(model.get("lastModified")),
         )
 
     def _health(self, name, status, models, state):

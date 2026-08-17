@@ -82,6 +82,13 @@ python scripts/show_latest_run.py --details
 
 También se puede seleccionar una corrida con `--run-id <UUID>` o limitar la salida con `--limit`.
 
+Para inspeccionar la evidencia cruda de un `candidate_record` y distinguir errores de collector,
+dedupe o análisis, sin llamadas externas:
+
+```bash
+python scripts/show_candidate.py <candidate-record-uuid>
+```
+
 Para revisar el digest sin enviar Telegram ni crear una reserva de envío:
 
 ```bash

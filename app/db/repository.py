@@ -21,6 +21,7 @@ from app.db.models import (
 )
 from app.domain.models import Candidate, DiscardReason, PipelineResult, StoredCandidate
 from app.llm.schemas import ArticleAnalysis
+from app.pipeline.normalize import base_model_identity
 from app.profiles.models import ProfileConfig
 
 
@@ -132,6 +133,7 @@ class RadarRepository:
             title=candidate.title,
             summary_raw=candidate.summary,
             published_at=candidate.published_at,
+            source_last_modified_at=candidate.source_last_modified_at,
             content_hash=candidate.content_hash,
             status="new"
             if is_new_event
@@ -256,6 +258,14 @@ class RadarRepository:
 
         cutoff = datetime.now(UTC) - timedelta(days=14)
         events = self.session.scalars(select(Event).where(Event.first_seen_at >= cutoff)).all()
+        candidate_model = base_model_identity(candidate.exact_model_id or candidate.title)
+        if candidate_model:
+            model_match = next(
+                (event for event in events if base_model_identity(event.title) == candidate_model),
+                None,
+            )
+            if model_match is not None:
+                return model_match
         return next(
             (
                 event

@@ -1,5 +1,6 @@
 import html
 
+from app.alerts.actions import humanize_action
 from app.domain.models import Candidate
 from app.llm.schemas import ArticleAnalysis
 from app.profiles.models import ProfileConfig
@@ -23,7 +24,7 @@ def format_telegram_alert(
     actions = "\n".join(
         f"{profile_configs[item.profile].icon} "
         f"<b>{html.escape(profile_configs[item.profile].name)}</b>: "
-        f"{html.escape(item.suggested_action)}"
+        f"{html.escape(humanize_action(item.suggested_action))}"
         for item in analysis.profiles
         if item.suggested_action
     )

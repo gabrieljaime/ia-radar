@@ -15,6 +15,8 @@ class ProfileEvaluation(BaseModel):
 
 
 class ArticleAnalysis(BaseModel):
+    subject_name: str
+    subject_type: str
     summary: str
     what_happened: str
     why_it_matters: str

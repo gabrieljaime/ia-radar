@@ -1,4 +1,6 @@
 {
+  "subject_name": "Model X",
+  "subject_type": "model",
   "summary": "Model X agrega capacidades para construir agentes.",
   "what_happened": "Se publicó una versión con tool calling y structured output.",
   "why_it_matters": "Permite actualizar ejemplos de agentes y evaluación.",

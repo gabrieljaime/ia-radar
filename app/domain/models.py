@@ -30,6 +30,9 @@ class Candidate:
     source_type: str = "rss"
     source_requires_primary_verification: bool = False
     external_id: str | None = None
+    exact_model_id: str | None = None
+    organization: str | None = None
+    source_last_modified_at: datetime | None = None
     canonical_url: str = ""
     normalized_title: str = ""
     content_hash: str = ""

@@ -88,6 +88,7 @@ class Article(Base):
     title: Mapped[str] = mapped_column(String(1000))
     summary_raw: Mapped[str] = mapped_column(Text, default="")
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    source_last_modified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     status: Mapped[str] = mapped_column(String(30), default="new", index=True)

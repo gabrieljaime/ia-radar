@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, desc, or_, select
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.alerts.actions import humanize_action
 from app.alerts.base import AlertChannel
 from app.db.models import Alert, Article, Digest, Event, EventScore, PipelineRun, Profile, Source
 from app.pipeline.score import classify_alert_score
@@ -144,35 +145,39 @@ class DigestService:
     def _load_events(
         self, period_start: datetime, period_end: datetime, run: PipelineRun | None
     ) -> list[DigestEvent]:
-        if run:
-            condition = or_(
-                Event.analyzed_run_id == run.id,
-                and_(
-                    Event.analyzed_run_id.is_(None),
-                    EventScore.created_at >= period_start,
-                    EventScore.created_at <= period_end,
-                ),
-            )
-        else:
-            condition = and_(
-                EventScore.created_at >= period_start,
-                EventScore.created_at <= period_end,
-            )
+        run_condition = Event.analyzed_run_id == run.id if run else True
         events = self.session.scalars(
             select(Event)
             .join(EventScore, EventScore.event_id == Event.id)
-            .where(condition)
+            .join(Article, Article.event_id == Event.id)
+            .where(
+                run_condition,
+                Article.published_at.is_not(None),
+                Article.published_at >= period_start,
+                Article.published_at <= period_end,
+            )
             .distinct()
         ).all()
-        return [item for event in events if (item := self._hydrate(event)).scores]
+        return [
+            item
+            for event in events
+            if (item := self._hydrate(event, period_start, period_end)).scores
+        ]
 
-    def _hydrate(self, event: Event) -> DigestEvent:
+    def _hydrate(self, event: Event, period_start: datetime, period_end: datetime) -> DigestEvent:
         article = self.session.scalar(
             select(Article)
-            .where(Article.event_id == event.id)
-            .order_by(desc(Article.published_at), desc(Article.discovered_at))
+            .where(
+                Article.event_id == event.id,
+                Article.published_at.is_not(None),
+                Article.published_at >= period_start,
+                Article.published_at <= period_end,
+            )
+            .order_by(desc(Article.published_at))
             .limit(1)
         )
+        if article is None:
+            return DigestEvent(event, None, None, {}, {}, False)
         source = self.session.get(Source, article.source_id) if article else None
         rows = self.session.execute(
             select(Profile, EventScore)
@@ -232,7 +237,8 @@ class DigestService:
                 and (item.scores[slug].relevance_score >= 50 or item.scores[slug].alert_score >= 50)
             )
             if count:
-                lines.append(f"• {count} novedades relevantes para {html.escape(profile.name)}")
+                noun = "novedad relevante" if count == 1 else "novedades relevantes"
+                lines.append(f"• {count} {noun} para {html.escape(profile.name)}")
         return "\n".join(lines)
 
     def _event_block(self, index: int, item: DigestEvent) -> str:
@@ -265,7 +271,13 @@ class DigestService:
             lines.extend(["", "<b>Por qué importa:</b>", html.escape(item.event.why_it_matters)])
         best_action = max(item.scores.values(), key=lambda score: score.actionability_score)
         if best_action.suggested_action:
-            lines.extend(["", "<b>💡 Acción:</b>", html.escape(best_action.suggested_action)])
+            lines.extend(
+                [
+                    "",
+                    "<b>💡 Acción sugerida:</b>",
+                    html.escape(humanize_action(best_action.suggested_action)),
+                ]
+            )
         best_url = item.event.primary_source_url or (
             item.article.canonical_url if item.article else None
         )
@@ -295,8 +307,9 @@ class DigestService:
         )
         result = []
         for score in candidates:
-            if score.suggested_action not in result:
-                result.append(score.suggested_action)
+            action = humanize_action(score.suggested_action)
+            if action not in result:
+                result.append(action)
             if len(result) == self.max_actions:
                 break
         return result

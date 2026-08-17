@@ -254,12 +254,17 @@ def parse_cohere(html: str, base_url: str) -> list[dict]:
                 break
             except ValueError:
                 continue
+        model_match = re.search(
+            r"(?i)\b(Command\s+(?:A(?:\s+(?:Vision|Reasoning))?|R(?:\s+\d+B)?))\b",
+            match["title"],
+        )
         items.append(
             {
                 "title": match["title"],
                 "url": urljoin(base_url, f"/{match['slug']}"),
                 "summary": match["summary"],
                 "published_at": published,
+                "exact_model_id": model_match.group(1) if model_match else None,
             }
         )
     return items
@@ -344,6 +349,7 @@ class WebChangelogCollector:
                     source_type="web_changelog",
                     source_requires_primary_verification=source.requires_primary_verification,
                     external_id=entry["url"],
+                    exact_model_id=entry.get("exact_model_id"),
                 )
                 for entry in entries
             ]

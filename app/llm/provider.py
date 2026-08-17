@@ -78,6 +78,9 @@ class OpenAICompatibleLLMProvider:
             "published_at": candidate.published_at.isoformat() if candidate.published_at else None,
             "source_trust": candidate.source_trust,
             "source_is_primary": candidate.source_is_primary,
+            "source_type": candidate.source_type,
+            "organization": candidate.organization,
+            "exact_model_id": candidate.exact_model_id,
         }
         language_instruction = (
             "All user-facing generated content must be written in Spanish."
@@ -106,6 +109,12 @@ class OpenAICompatibleLLMProvider:
             "Return exactly one profile evaluation for every enabled profile supplied below. "
             "Do not add, omit, duplicate, merge, or rename profile IDs. The required profile IDs "
             f"are {json.dumps(expected_profile_ids)}.\n"
+            "FACTUAL ANCHORS are binding. Preserve exact product and model identifiers. Never "
+            "infer or substitute another model name, never replace a model ID with a related "
+            "model, "
+            "and never combine facts from adjacent changelog entries. When exact_model_id is set, "
+            "subject_name must reproduce it exactly. If evidence is insufficient, say so rather "
+            "than guessing.\n"
             f"ENABLED_PROFILES={json.dumps(profile_data)}\n"
             f"<ARTICLE_DATA>{json.dumps(article_data)}</ARTICLE_DATA>"
         )

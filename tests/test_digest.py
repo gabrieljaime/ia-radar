@@ -27,6 +27,9 @@ def add_event(
     actionability=70,
     age_minutes=0,
     alerted=False,
+    published_at=None,
+    first_seen_at=None,
+    suggested_action=None,
 ):
     analyzed_at = datetime.now(UTC) - timedelta(minutes=age_minutes)
     source = Source(
@@ -45,6 +48,7 @@ def add_event(
         why_it_matters="Importa para agentes & gobernanza.",
         confidence=0.9,
         hype_probability=0.1,
+        first_seen_at=first_seen_at or analyzed_at,
     )
     session.add_all([source, event])
     session.flush()
@@ -56,7 +60,8 @@ def add_event(
             normalized_title=event.normalized_title,
             title=title,
             summary_raw="summary",
-            published_at=analyzed_at,
+            published_at=published_at if published_at is not None else analyzed_at,
+            discovered_at=first_seen_at or analyzed_at,
             content_hash=uuid4().hex,
         )
     )
@@ -82,7 +87,11 @@ def add_event(
                 strategic_impact_score=65,
                 alert_score=alert if slug == "ai_agent_developer" else 35,
                 relevance_reason="Motivo",
-                suggested_action=(f"Acción para {title}" if slug == "ai_agent_developer" else None),
+                suggested_action=(
+                    suggested_action or f"Acción para {title}"
+                    if slug == "ai_agent_developer"
+                    else None
+                ),
                 related_topics=[],
                 related_classes=[],
                 created_at=analyzed_at,
@@ -191,3 +200,34 @@ async def test_digest_hides_disabled_profiles_and_does_not_duplicate_events(sess
     assert text.count("1. Multi-profile") == 1
     assert "Bank Risk Intelligence" not in text
     assert "AI General Radar" in text
+
+
+async def test_digest_lookback_uses_publication_not_first_seen(session):
+    now = datetime(2026, 8, 16, 23, 51, tzinfo=UTC)
+    add_event(session, title="Recent", alert=80, published_at=datetime(2026, 8, 16, 22, tzinfo=UTC))
+    for title, published in (
+        ("Yesterday", datetime(2026, 8, 15, 20, tzinfo=UTC)),
+        ("June", datetime(2026, 6, 17, tzinfo=UTC)),
+        ("Old Cohere", datetime(2025, 7, 31, tzinfo=UTC)),
+    ):
+        add_event(session, title=title, alert=80, published_at=published, first_seen_at=now)
+    result = await DigestService(session, None, now=now).send_digest(hours=24, dry_run=True)
+    text = "\n".join(result.messages)
+    assert "Recent" in text
+    assert all(title not in text for title in ("Yesterday", "June", "Old Cohere"))
+
+
+async def test_digest_excludes_missing_publication_and_humanizes_action_enum(session):
+    recent = add_event(session, title="Action", alert=80, suggested_action="suggest_demo")
+    missing = add_event(session, title="Missing date", alert=80)
+    article = session.scalar(select(Article).where(Article.event_id == missing.id))
+    article.published_at = None
+    session.commit()
+    result = await DigestService(session, None).send_digest(dry_run=True)
+    text = "\n".join(result.messages)
+    assert recent.title in text
+    assert "Missing date" not in text
+    assert "Probarlo en una demo" in text
+    assert "suggest_demo" not in text
+    assert text.count("• Probarlo en una demo") == 1
+    assert "1 novedad relevante" in text

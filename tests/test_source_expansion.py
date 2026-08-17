@@ -2,7 +2,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
+import pytest
 
+from app.application.radar_service import validate_factual_anchors
 from app.collectors.github_releases import GitHubReleasesCollector
 from app.collectors.huggingface_models import HuggingFaceModelsCollector
 from app.collectors.web_articles import parse_kimi
@@ -112,3 +114,40 @@ async def test_api_collectors_fail_safe():
         assert await huggingface.collect() == []
     assert github.health[0]["status"] == "API_ERROR"
     assert huggingface.health[0]["status"] == "API_ERROR"
+
+
+def test_cohere_entries_are_parsed_atomically_without_neighbor_contamination():
+    html = """
+    <script>var frontmatter = {"title": "Command A Vision", "slug":
+    "changelog/command-a-vision", "createdAt": "Mon Aug 10 2026 09:00:00 (EST)",
+    "description": "Command A Vision processes images."};</script>
+    <script>var frontmatter = {"title": "Command A", "slug": "changelog/command-a",
+    "createdAt": "Mon Aug 11 2026 09:00:00 (EST)", "description":
+    "Command A is the flagship model."};</script>
+    """
+    vision, command = parse_cohere(html, "https://docs.cohere.com/v2/changelog")
+    assert "Vision" in vision["summary"]
+    assert "Reasoning" not in vision["summary"]
+    assert "Command A is" in command["summary"]
+    assert "Command R 7B" not in command["summary"]
+
+
+def test_factual_anchor_rejects_related_but_different_model(analysis):
+    candidate = type("Anchored", (), {"exact_model_id": "Qwen/Qwen3.8-2.4T-A95B"})()
+    wrong = analysis.model_copy(update={"subject_name": "Qwen/Qwen3.8-27B"})
+    with pytest.raises(ValueError, match="contradicts"):
+        validate_factual_anchors(candidate, wrong)
+
+
+@pytest.mark.parametrize(
+    ("expected", "wrong"),
+    [
+        ("Cohere/Command-A-Vision", "Cohere/Command-A-Reasoning"),
+        ("Cohere/Command-A", "Cohere/Command-R-7B"),
+        ("zai-org/GLM-5.2", "zai-org/GLM-5.2-FP8"),
+    ],
+)
+def test_factual_anchor_rejects_identifier_substitution(analysis, expected, wrong):
+    candidate = type("Anchored", (), {"exact_model_id": expected})()
+    with pytest.raises(ValueError, match="contradicts"):
+        validate_factual_anchors(candidate, analysis.model_copy(update={"subject_name": wrong}))

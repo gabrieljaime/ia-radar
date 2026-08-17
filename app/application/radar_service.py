@@ -18,6 +18,17 @@ from app.profiles.models import ProfileConfig
 logger = logging.getLogger(__name__)
 
 
+def validate_factual_anchors(candidate, analysis) -> None:
+    if not candidate.exact_model_id:
+        return
+    expected = candidate.exact_model_id.casefold().strip()
+    returned = analysis.subject_name.casefold().strip()
+    if returned not in {expected, expected.rsplit("/", 1)[-1]}:
+        raise StructuredOutputError(
+            f"LLM subject_name contradicts exact_model_id {candidate.exact_model_id}"
+        )
+
+
 class RadarService:
     def __init__(
         self,
@@ -134,25 +145,38 @@ class RadarService:
     async def _analyze(self, stored, candidate, profile_rows, result: PipelineResult) -> None:
         assert self.llm is not None
         try:
-            result.llm_calls += 1
-            try:
-                analysis = await self.llm.analyze_article(candidate, self.enabled_profiles)
-            finally:
-                waited = getattr(self.llm, "last_rate_limit_wait_seconds", 0.0)
-                if waited:
-                    logger.info(
-                        "event_llm_rate_limit_wait",
-                        extra={
-                            "run_id": str(result.run_id),
-                            "event_id": str(stored.event_id),
-                            "rate_limit_wait_seconds": round(waited, 3),
-                            "llm_provider": type(self.llm).__name__,
-                        },
+            analysis = None
+            for factual_attempt in range(2):
+                result.llm_calls += 1
+                try:
+                    analysis = await self.llm.analyze_article(candidate, self.enabled_profiles)
+                finally:
+                    usage = self.llm.last_usage
+                    result.input_tokens += usage.input_tokens
+                    result.output_tokens += usage.output_tokens
+                    result.estimated_cost_usd += usage.estimated_cost_usd
+                try:
+                    validate_factual_anchors(candidate, analysis)
+                    break
+                except StructuredOutputError:
+                    if factual_attempt == 1:
+                        raise
+                    logger.warning(
+                        "analysis_factual_anchor_retry",
+                        extra={"exact_model_id": candidate.exact_model_id},
                     )
-            usage = self.llm.last_usage
-            result.input_tokens += usage.input_tokens
-            result.output_tokens += usage.output_tokens
-            result.estimated_cost_usd += usage.estimated_cost_usd
+            assert analysis is not None
+            waited = getattr(self.llm, "last_rate_limit_wait_seconds", 0.0)
+            if waited:
+                logger.info(
+                    "event_llm_rate_limit_wait",
+                    extra={
+                        "run_id": str(result.run_id),
+                        "event_id": str(stored.event_id),
+                        "rate_limit_wait_seconds": round(waited, 3),
+                        "llm_provider": type(self.llm).__name__,
+                    },
+                )
             expected = {profile.slug for profile in self.enabled_profiles}
             received = [evaluation.profile for evaluation in analysis.profiles]
             if len(received) != len(set(received)) or set(received) != expected:
