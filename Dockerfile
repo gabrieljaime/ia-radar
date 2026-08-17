@@ -1,5 +1,6 @@
 FROM python:3.12-slim AS runtime
 WORKDIR /app
+ENV PYTHONPATH=/app
 COPY pyproject.toml README.md ./
 COPY app ./app
 RUN pip install --no-cache-dir .
@@ -16,6 +17,5 @@ FROM runtime AS test
 USER root
 COPY tests ./tests
 RUN pip install --no-cache-dir ".[dev]"
-ENV PYTHONPATH=/app
 USER radar
 CMD ["pytest", "-q"]

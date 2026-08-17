@@ -3,6 +3,18 @@ from pathlib import Path
 import httpx
 
 from scripts.check_feeds import check_feed
+from scripts.check_runtime_imports import ENTRYPOINT_MODULES, main
+
+
+def test_runtime_entrypoints_import_without_external_operations(capsys):
+    assert main() == 0
+    assert capsys.readouterr().out == "Runtime entrypoint imports: OK\n"
+    assert ENTRYPOINT_MODULES == (
+        "scripts.check_sources",
+        "scripts.run_radar",
+        "scripts.send_digest",
+        "scripts.show_latest_run",
+    )
 
 
 async def test_check_feed_reports_parse_metadata():

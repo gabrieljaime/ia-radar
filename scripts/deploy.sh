@@ -18,6 +18,7 @@ if [[ "${SKIP_TESTS:-0}" != "1" ]]; then
 fi
 
 docker compose build radar
+docker compose run --rm --no-deps radar python scripts/check_runtime_imports.py
 docker compose up -d postgres
 docker compose run --rm radar python -m alembic upgrade head
 docker compose up -d --wait radar
