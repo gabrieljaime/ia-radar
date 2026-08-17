@@ -171,14 +171,24 @@ class RadarRepository:
 
     def sync_profiles(self, profiles: list[ProfileConfig]) -> dict[str, Profile]:
         result = {}
+        configured_slugs = {config.slug for config in profiles}
+        for stored_profile in self.session.scalars(select(Profile)).all():
+            if stored_profile.slug not in configured_slugs:
+                stored_profile.enabled = False
         for config in profiles:
             profile = self.session.scalar(select(Profile).where(Profile.slug == config.slug))
             if profile is None:
-                profile = Profile(slug=config.slug, name=config.name, enabled=config.enabled)
+                profile = Profile(
+                    slug=config.slug,
+                    name=config.name,
+                    icon=config.icon,
+                    enabled=config.enabled,
+                )
                 self.session.add(profile)
                 self.session.flush()
             else:
                 profile.name = config.name
+                profile.icon = config.icon
                 profile.enabled = config.enabled
             result[config.slug] = profile
         self.session.commit()

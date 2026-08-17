@@ -4,9 +4,15 @@ from pydantic import ValidationError
 from app.llm.schemas import ArticleAnalysis
 
 
-def test_loads_three_complete_profiles(profiles):
-    assert {profile.slug for profile in profiles} == {"educator", "course", "bank"}
+def test_loads_four_complete_profiles(profiles):
+    assert {profile.slug for profile in profiles} == {
+        "educator",
+        "ai_agent_developer",
+        "bank_risk",
+        "general_ai",
+    }
     assert all(profile.topics for profile in profiles)
+    assert all(profile.enabled and profile.icon for profile in profiles)
 
 
 def test_structured_output_rejects_out_of_range_score(analysis):
@@ -32,3 +38,9 @@ def test_all_profile_dimensions_accept_independent_scores(analysis):
             evaluation.alert_score,
         )
     )
+
+
+def test_general_ai_profile_is_calibrated_for_significance_not_corporate_noise(profiles):
+    general = next(profile for profile in profiles if profile.slug == "general_ai")
+    assert "nuevas generaciones" in general.description
+    assert "ruido corporativo" in general.description

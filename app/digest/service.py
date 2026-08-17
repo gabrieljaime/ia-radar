@@ -15,11 +15,6 @@ from app.db.models import Alert, Article, Digest, Event, EventScore, PipelineRun
 from app.pipeline.score import classify_alert_score
 
 TELEGRAM_SAFE_LENGTH = 3800
-PROFILE_LABELS = {
-    "course": ("🤖", "AI Agent Developer"),
-    "educator": ("🎓", "Educator"),
-    "bank": ("🏦", "Bank Risk Intelligence"),
-}
 
 
 @dataclass(slots=True)
@@ -28,6 +23,7 @@ class DigestEvent:
     article: Article | None
     source: Source | None
     scores: dict[str, EventScore]
+    profiles: dict[str, Profile]
     previously_alerted: bool
 
     @property
@@ -168,7 +164,7 @@ class DigestService:
             .where(condition)
             .distinct()
         ).all()
-        return [self._hydrate(event) for event in events]
+        return [item for event in events if (item := self._hydrate(event)).scores]
 
     def _hydrate(self, event: Event) -> DigestEvent:
         article = self.session.scalar(
@@ -179,9 +175,9 @@ class DigestService:
         )
         source = self.session.get(Source, article.source_id) if article else None
         rows = self.session.execute(
-            select(Profile.slug, EventScore)
+            select(Profile, EventScore)
             .join(EventScore, EventScore.profile_id == Profile.id)
-            .where(EventScore.event_id == event.id)
+            .where(EventScore.event_id == event.id, Profile.enabled.is_(True))
         ).all()
         alerted = self.session.scalar(
             select(Alert.id).where(
@@ -190,7 +186,9 @@ class DigestService:
                 Alert.delivery_status == "sent",
             )
         )
-        return DigestEvent(event, article, source, dict(rows), alerted is not None)
+        scores = {profile.slug: score for profile, score in rows}
+        profiles = {profile.slug: profile for profile, _ in rows}
+        return DigestEvent(event, article, source, scores, profiles, alerted is not None)
 
     def _render_blocks(
         self,
@@ -224,24 +222,17 @@ class DigestService:
         return blocks
 
     def _executive_summary(self, events: list[DigestEvent]) -> str:
-        labels = {
-            "course": "novedades relevantes para AI Agent Developer",
-            "bank": "noticias con impacto potencial en Bank Risk Intelligence",
-            "educator": "desarrollos relevantes para educación",
-        }
         lines = []
-        for profile in ("course", "bank", "educator"):
+        profiles = {slug: profile for item in events for slug, profile in item.profiles.items()}
+        for slug, profile in sorted(profiles.items(), key=lambda item: item[1].name):
             count = sum(
                 1
                 for item in events
-                if profile in item.scores
-                and (
-                    item.scores[profile].relevance_score >= 50
-                    or item.scores[profile].alert_score >= 50
-                )
+                if slug in item.scores
+                and (item.scores[slug].relevance_score >= 50 or item.scores[slug].alert_score >= 50)
             )
             if count:
-                lines.append(f"• {count} {labels[profile]}")
+                lines.append(f"• {count} novedades relevantes para {html.escape(profile.name)}")
         return "\n".join(lines)
 
     def _event_block(self, index: int, item: DigestEvent) -> str:
@@ -253,14 +244,18 @@ class DigestService:
         lines = [f"<b>{index}. {html.escape(item.event.title)}</b>", category]
         if item.previously_alerted:
             lines.append("🔥 Alerta enviada anteriormente")
-        for profile in ("course", "educator", "bank"):
-            score = item.scores.get(profile)
+        ordered_profiles = sorted(
+            item.profiles.values(),
+            key=lambda profile: item.scores[profile.slug].relevance_score,
+            reverse=True,
+        )
+        for profile in ordered_profiles:
+            score = item.scores.get(profile.slug)
             if score and (score.relevance_score >= 50 or score.alert_score >= 50):
-                icon, label = PROFILE_LABELS[profile]
                 lines.extend(
                     [
                         "",
-                        f"{icon} <b>{label}</b>",
+                        f"{profile.icon} <b>{html.escape(profile.name)}</b>",
                         f"Relevancia: {score.relevance_score} · Alerta: {score.alert_score}",
                     ]
                 )

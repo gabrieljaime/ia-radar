@@ -1,6 +1,8 @@
-slug: course
+slug: ai_agent_developer
 name: AI Agent Developer
-description: Cambios técnicos aplicables a un curso profesional de agentes de IA.
+icon: "🤖"
+enabled: true
+description: Cambios técnicos sobre agentes, MCP, tool calling, LangGraph, RAG, embeddings, context engineering, memory, modelos locales, evaluación, observabilidad, guardrails, HITL y structured outputs.
 topics:
   agents: 1.0
   agent_architecture: 1.0

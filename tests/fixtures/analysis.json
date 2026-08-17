@@ -9,7 +9,8 @@
   "hype_probability": 0.05,
   "profiles": [
     {"profile": "educator", "relevance_score": 91, "novelty_score": 88, "actionability_score": 82, "strategic_impact_score": 80, "alert_score": 78, "reason": "Aplicable a tutores.", "suggested_action": "Evaluar un tutor.", "related_topics": ["ai_tutors"], "related_classes": []},
-    {"profile": "course", "relevance_score": 99, "novelty_score": 94, "actionability_score": 96, "strategic_impact_score": 90, "alert_score": 94, "reason": "Cambio central para agentes.", "suggested_action": "Demo para clase 11.", "related_topics": ["tool_calling", "structured_output"], "related_classes": [11]},
-    {"profile": "bank", "relevance_score": 93, "novelty_score": 85, "actionability_score": 88, "strategic_impact_score": 91, "alert_score": 90, "reason": "Impacta governance.", "suggested_action": "Revisar controles.", "related_topics": ["ai_governance"], "related_classes": []}
+    {"profile": "ai_agent_developer", "relevance_score": 99, "novelty_score": 94, "actionability_score": 96, "strategic_impact_score": 90, "alert_score": 94, "reason": "Cambio central para agentes.", "suggested_action": "Demo para clase 11.", "related_topics": ["tool_calling", "structured_output"], "related_classes": [11]},
+    {"profile": "bank_risk", "relevance_score": 93, "novelty_score": 85, "actionability_score": 88, "strategic_impact_score": 91, "alert_score": 90, "reason": "Impacta governance.", "suggested_action": "Revisar controles.", "related_topics": ["ai_governance"], "related_classes": []},
+    {"profile": "general_ai", "relevance_score": 97, "novelty_score": 95, "actionability_score": 85, "strategic_impact_score": 96, "alert_score": 93, "reason": "Lanzamiento significativo para el ecosistema de IA.", "suggested_action": "Evaluar las nuevas capacidades del modelo.", "related_topics": ["model_release"], "related_classes": []}
   ]
 }

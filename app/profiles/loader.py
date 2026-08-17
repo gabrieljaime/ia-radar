@@ -15,4 +15,6 @@ def load_profiles(directory: Path) -> list[ProfileConfig]:
     slugs = [profile.slug for profile in profiles]
     if len(slugs) != len(set(slugs)):
         raise ValueError("Profile slugs must be unique")
+    if not any(profile.enabled for profile in profiles):
+        raise ValueError("At least one profile must be enabled")
     return profiles

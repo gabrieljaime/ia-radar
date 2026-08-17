@@ -1,0 +1,46 @@
+slug: general_ai
+name: AI General Radar
+icon: "🌐"
+enabled: true
+description: >
+  Novedades significativas del ecosistema global de inteligencia artificial: nuevas generaciones
+  de modelos, capacidades importantes, APIs, open weights, infraestructura, investigación con
+  impacto práctico y cambios estratégicos. Debe ignorar ruido corporativo, marketing, ejecutivos,
+  oficinas y partnerships sin impacto técnico o estratégico extraordinario.
+topics:
+  new_model: 1.0
+  model_release: 1.0
+  new_generation: 1.0
+  frontier_model: 1.0
+  reasoning: 0.9
+  multimodal: 0.9
+  context_window: 0.85
+  api: 0.8
+  realtime: 0.85
+  tool_calling: 0.85
+  structured_outputs: 0.85
+  open_weights: 0.95
+  open_source_model: 0.9
+  inference: 0.85
+  gpu: 0.8
+  npu: 0.8
+  accelerator: 0.8
+  benchmark: 0.75
+  computer_use: 0.9
+entities:
+  openai: 0.9
+  anthropic: 0.9
+  google_deepmind: 0.9
+  meta: 0.85
+  microsoft: 0.8
+  xai: 0.85
+  nvidia: 0.85
+  apple: 0.8
+  amazon: 0.8
+  deepseek: 0.9
+  qwen: 0.9
+  mistral: 0.9
+  hugging_face: 0.8
+actions:
+  suggest_research_use: true
+  suggest_internal_use_case: true

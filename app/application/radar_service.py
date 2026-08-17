@@ -35,6 +35,9 @@ class RadarService:
         self.llm = llm
         self.repository = repository
         self.profiles = profiles
+        self.enabled_profiles = [profile for profile in profiles if profile.enabled]
+        if not self.enabled_profiles:
+            raise ValueError("At least one profile must be enabled")
         self.alert_channel = alert_channel
         self.lookback_hours = lookback_hours
         self.prefilter_min_score = prefilter_min_score
@@ -90,7 +93,9 @@ class RadarService:
             result.record_discard(DiscardReason.DUPLICATE)
             return
 
-        reason = prefilter(candidate, self.profiles, self.lookback_hours, self.prefilter_min_score)
+        reason = prefilter(
+            candidate, self.enabled_profiles, self.lookback_hours, self.prefilter_min_score
+        )
         if reason:
             self.repository.mark_discard(
                 stored.candidate_record_id, stored.article_id, stored.event_id, reason
@@ -108,7 +113,7 @@ class RadarService:
         try:
             result.llm_calls += 1
             try:
-                analysis = await self.llm.analyze_article(candidate, self.profiles)
+                analysis = await self.llm.analyze_article(candidate, self.enabled_profiles)
             finally:
                 waited = getattr(self.llm, "last_rate_limit_wait_seconds", 0.0)
                 if waited:
@@ -125,9 +130,9 @@ class RadarService:
             result.input_tokens += usage.input_tokens
             result.output_tokens += usage.output_tokens
             result.estimated_cost_usd += usage.estimated_cost_usd
-            expected = {profile.slug for profile in self.profiles if profile.enabled}
-            received = {evaluation.profile for evaluation in analysis.profiles}
-            if received != expected:
+            expected = {profile.slug for profile in self.enabled_profiles}
+            received = [evaluation.profile for evaluation in analysis.profiles]
+            if len(received) != len(set(received)) or set(received) != expected:
                 raise StructuredOutputError("LLM profile set does not match configured profiles")
         except (LLMRequestError, StructuredOutputError, ValueError) as error:
             self.repository.mark_analysis_failed(stored.candidate_record_id, stored.event_id)
@@ -157,7 +162,7 @@ class RadarService:
             await self._send_alert(stored.event_id, candidate, analysis, scores, result)
 
     async def _send_alert(self, event_id, candidate, analysis, scores, result) -> None:
-        text = format_telegram_alert(candidate, analysis, scores)
+        text = format_telegram_alert(candidate, analysis, scores, self.enabled_profiles)
         if getattr(self.alert_channel, "is_dry_run", False):
             await self.alert_channel.send(text)
             return

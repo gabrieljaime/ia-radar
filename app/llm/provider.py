@@ -60,6 +60,7 @@ class OpenAICompatibleLLMProvider:
     ) -> ArticleAnalysis:
         self.last_usage = LLMUsage()
         profile_data = [profile.model_dump() for profile in profiles]
+        expected_profile_ids = [profile.slug for profile in profiles]
         article_data = {
             "title": candidate.title,
             "summary": candidate.summary,
@@ -92,6 +93,9 @@ class OpenAICompatibleLLMProvider:
             "what_changed, reason, and suggested_action. Technical product names, API names, "
             "company names, model names, framework names, technical acronyms, proper nouns, and "
             "article titles must remain in their original language.\n"
+            "Return exactly one profile evaluation for every enabled profile supplied below. "
+            "Do not add, omit, duplicate, merge, or rename profile IDs. The required profile IDs "
+            f"are {json.dumps(expected_profile_ids)}.\n"
             f"ARTICLE={json.dumps(article_data)}\n"
             f"PROFILES={json.dumps(profile_data)}"
         )

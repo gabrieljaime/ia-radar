@@ -60,23 +60,29 @@ def add_event(
             content_hash=uuid4().hex,
         )
     )
-    for slug in ("course", "educator", "bank"):
+    metadata = {
+        "ai_agent_developer": ("AI Agent Developer", "🤖"),
+        "educator": ("Educator", "🎓"),
+        "bank_risk": ("Bank Risk Intelligence", "🏦"),
+        "general_ai": ("AI General Radar", "🌐"),
+    }
+    for slug, (name, icon) in metadata.items():
         profile = session.scalar(select(Profile).where(Profile.slug == slug))
         if profile is None:
-            profile = Profile(slug=slug, name=slug.title())
+            profile = Profile(slug=slug, name=name, icon=icon)
             session.add(profile)
             session.flush()
         session.add(
             EventScore(
                 event_id=event.id,
                 profile_id=profile.id,
-                relevance_score=relevance if slug == "course" else 40,
+                relevance_score=relevance if slug == "ai_agent_developer" else 40,
                 novelty_score=60,
-                actionability_score=actionability if slug == "course" else 30,
+                actionability_score=actionability if slug == "ai_agent_developer" else 30,
                 strategic_impact_score=65,
-                alert_score=alert if slug == "course" else 35,
+                alert_score=alert if slug == "ai_agent_developer" else 35,
                 relevance_reason="Motivo",
-                suggested_action=f"Acción para {title}" if slug == "course" else None,
+                suggested_action=(f"Acción para {title}" if slug == "ai_agent_developer" else None),
                 related_topics=[],
                 related_classes=[],
                 created_at=analyzed_at,
@@ -170,3 +176,18 @@ async def test_digest_escapes_html_and_marks_prior_alert(session):
 def test_digest_command_has_no_llm_dependency():
     assert "LLMProvider" not in inspect.getsource(send_digest)
     assert "app.llm" not in inspect.getsource(send_digest)
+
+
+async def test_digest_hides_disabled_profiles_and_does_not_duplicate_events(session):
+    event = add_event(session, title="Multi-profile", alert=91)
+    bank = session.scalar(select(Profile).where(Profile.slug == "bank_risk"))
+    bank.enabled = False
+    for score in session.scalars(select(EventScore).where(EventScore.event_id == event.id)):
+        score.relevance_score = 90
+        score.alert_score = 80
+    session.commit()
+    result = await DigestService(session, None).send_digest(dry_run=True)
+    text = "\n".join(result.messages)
+    assert text.count("1. Multi-profile") == 1
+    assert "Bank Risk Intelligence" not in text
+    assert "AI General Radar" in text

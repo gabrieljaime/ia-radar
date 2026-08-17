@@ -52,3 +52,18 @@ def test_prefilter_keeps_novel_model_from_high_trust_primary_source(profiles):
         datetime.now(UTC),
     )
     assert prefilter(normalize_candidate(item), profiles, 14, 20) is None
+
+
+def test_general_ai_profile_keeps_major_model_launch(profiles):
+    general = [profile for profile in profiles if profile.slug == "general_ai"]
+    item = Candidate(
+        "Official",
+        "https://example.com/feed",
+        90,
+        True,
+        "OpenAI launches a new frontier model generation",
+        "https://example.com/gpt-6",
+        "Major reasoning, multimodal and context window improvements.",
+        datetime.now(UTC),
+    )
+    assert prefilter(normalize_candidate(item), general, 48, 20) is None

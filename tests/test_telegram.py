@@ -29,7 +29,7 @@ async def test_telegram_error_has_no_secret_in_message():
             await channel.send("hello")
 
 
-def test_alert_format_separates_relevance_and_alert(analysis):
+def test_alert_format_separates_relevance_and_alert(analysis, profiles):
     item = Candidate(
         "Official",
         "https://example.com/feed",
@@ -41,7 +41,7 @@ def test_alert_format_separates_relevance_and_alert(analysis):
         datetime.now(UTC),
         canonical_url="https://example.com/model-x",
     )
-    text = format_telegram_alert(item, analysis, calculate_scores(analysis, 100, True))
+    text = format_telegram_alert(item, analysis, calculate_scores(analysis, 100, True), profiles)
     assert "Relevancia: 99" in text
     assert "Alerta:" in text
     assert "Hype: 0.05" in text

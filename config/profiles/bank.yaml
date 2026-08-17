@@ -1,6 +1,8 @@
-slug: bank
+slug: bank_risk
 name: Bank Risk Intelligence
-description: IA relevante para banca, riesgo, regulación y gobierno de modelos y datos.
+icon: "🏦"
+enabled: true
+description: IA relevante para banca, riesgo de crédito, fraude, compliance, financial crime, model risk, AI governance, regulación, explainability, data governance, responsible AI y enterprise agents.
 topics:
   banking_ai: 1.0
   credit_risk: 1.0

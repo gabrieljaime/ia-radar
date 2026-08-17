@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -20,6 +19,7 @@ class DisplayEvent:
     article: Article | None
     source: Source | None
     scores: dict[str, EventScore]
+    profiles: dict[str, Profile]
 
     @property
     def max_alert(self) -> int:
@@ -64,11 +64,13 @@ def load_display_events(session: Session, run: PipelineRun) -> list[DisplayEvent
         )
         source = session.get(Source, article.source_id) if article else None
         score_rows = session.execute(
-            select(Profile.slug, EventScore)
+            select(Profile, EventScore)
             .join(EventScore, EventScore.profile_id == Profile.id)
-            .where(EventScore.event_id == event.id)
+            .where(EventScore.event_id == event.id, Profile.enabled.is_(True))
         ).all()
-        result.append(DisplayEvent(event, article, source, dict(score_rows)))
+        scores = {profile.slug: score for profile, score in score_rows}
+        profiles = {profile.slug: profile for profile, _ in score_rows}
+        result.append(DisplayEvent(event, article, source, scores, profiles))
     return sorted(
         result,
         key=lambda item: (
@@ -80,11 +82,6 @@ def load_display_events(session: Session, run: PipelineRun) -> list[DisplayEvent
         ),
         reverse=True,
     )
-
-
-def _score(item: DisplayEvent, profile: str, field: str) -> str:
-    score = item.scores.get(profile)
-    return str(getattr(score, field)) if score else "-"
 
 
 def _run_header(run: PipelineRun, cost_configured: bool) -> list[str]:
@@ -111,51 +108,28 @@ def _run_header(run: PipelineRun, cost_configured: bool) -> list[str]:
 
 
 def _summary(events: list[DisplayEvent]) -> list[str]:
-    width = shutil.get_terminal_size((140, 24)).columns
-    fixed_width = 95
-    title_width = max(20, min(55, width - fixed_width))
-    headers = [
-        ("NOTICIA", title_width),
-        ("FUENTE", 18),
-        ("FECHA", 10),
-        ("EDU_REL", 7),
-        ("EDU_ALT", 7),
-        ("COUR_REL", 8),
-        ("COUR_ALT", 8),
-        ("BANK_REL", 8),
-        ("BANK_ALT", 8),
-        ("CONF", 5),
-        ("HYPE", 5),
-    ]
-
-    def row(values: list[str]) -> str:
-        return " ".join(
-            value[:size].ljust(size) for value, (_, size) in zip(values, headers, strict=True)
-        )
-
-    lines = [row([name for name, _ in headers]), "-" * min(width, sum(x[1] for x in headers) + 10)]
+    lines = []
     for item in events:
         published = (
             item.article.published_at.strftime("%Y-%m-%d")
             if item.article and item.article.published_at
             else "-"
         )
-        lines.append(
-            row(
-                [
-                    item.event.title,
-                    item.source.name if item.source else "-",
-                    published,
-                    _score(item, "educator", "relevance_score"),
-                    _score(item, "educator", "alert_score"),
-                    _score(item, "course", "relevance_score"),
-                    _score(item, "course", "alert_score"),
-                    _score(item, "bank", "relevance_score"),
-                    _score(item, "bank", "alert_score"),
-                    f"{item.event.confidence:.2f}",
-                    f"{item.event.hype_probability:.2f}",
-                ]
+        lines.extend(
+            [
+                "-" * 80,
+                item.event.title,
+                f"Fuente: {item.source.name if item.source else '-'} · Fecha: {published}",
+            ]
+        )
+        for profile in sorted(item.profiles.values(), key=lambda value: value.name):
+            score = item.scores[profile.slug]
+            lines.append(
+                f"{profile.icon} {profile.name}: "
+                f"relevancia {score.relevance_score} / alerta {score.alert_score}"
             )
+        lines.append(
+            f"Confidence: {item.event.confidence:.2f} · Hype: {item.event.hype_probability:.2f}"
         )
     return lines
 
@@ -177,13 +151,11 @@ def _details(events: list[DisplayEvent]) -> list[str]:
         )
         if item.source and item.source.is_primary and item.article:
             lines.append(f"PRIMARY_SOURCE_URL:\n{item.article.canonical_url}")
-        for profile in ("course", "bank", "educator"):
-            score = item.scores.get(profile)
-            if score is None:
-                continue
+        for profile in sorted(item.profiles.values(), key=lambda value: value.name):
+            score = item.scores[profile.slug]
             lines.extend(
                 [
-                    profile.upper(),
+                    f"{profile.icon} {profile.name.upper()}",
                     f"  relevance: {score.relevance_score}",
                     f"  alert: {score.alert_score}",
                     f"  novelty: {score.novelty_score}",

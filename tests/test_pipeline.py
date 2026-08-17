@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+import pytest
 from conftest import RecordingChannel, StaticCollector, StaticLLM
 from sqlalchemy import func, select
 
@@ -37,7 +38,7 @@ async def test_pipeline_is_idempotent_and_sends_one_alert(repository, session, p
     assert len(channel.messages) == 1
     assert session.scalar(select(func.count()).select_from(Event)) == 1
     assert session.scalar(select(func.count()).select_from(Article)) == 1
-    assert session.scalar(select(func.count()).select_from(EventScore)) == 3
+    assert session.scalar(select(func.count()).select_from(EventScore)) == 4
     assert session.scalar(select(func.count()).select_from(Alert)) == 1
     records = session.scalars(select(CandidateRecord)).all()
     assert [record.discard_reason for record in records] == [None, "already_seen"]
@@ -186,13 +187,73 @@ async def test_pending_event_can_be_analyzed_on_later_run(repository, session, p
     assert event.status == "analyzed"
 
 
-async def test_three_profiles_use_one_llm_request(repository, profiles, analysis):
+async def test_four_profiles_use_one_llm_request(repository, profiles, analysis):
     llm = StaticLLM(analysis)
     result = await RadarService(
         StaticCollector([candidate()]), llm, repository, profiles, RecordingChannel()
     ).run()
-    assert len(profiles) == 3
+    assert len(profiles) == 4
     assert llm.calls == result.llm_calls == 1
+    assert set(llm.profile_calls[0]) == {profile.slug for profile in profiles}
+
+
+async def test_disabled_profile_is_not_sent_or_scored(repository, session, profiles, analysis):
+    configured = [
+        profile.model_copy(update={"enabled": False}) if profile.slug == "bank_risk" else profile
+        for profile in profiles
+    ]
+    analysis.profiles = [item for item in analysis.profiles if item.profile != "bank_risk"]
+    llm = StaticLLM(analysis)
+    result = await RadarService(
+        StaticCollector([candidate()]), llm, repository, configured, RecordingChannel()
+    ).run()
+    assert result.analyzed == 1
+    assert llm.calls == 1
+    assert "bank_risk" not in llm.profile_calls[0]
+    assert len(llm.profile_calls[0]) == 3
+    assert session.scalar(select(func.count()).select_from(EventScore)) == 3
+
+
+async def test_single_enabled_profile_still_uses_one_request(repository, profiles, analysis):
+    configured = [
+        profile.model_copy(update={"enabled": profile.slug == "general_ai"}) for profile in profiles
+    ]
+    analysis.profiles = [item for item in analysis.profiles if item.profile == "general_ai"]
+    llm = StaticLLM(analysis)
+    result = await RadarService(
+        StaticCollector([candidate()]), llm, repository, configured, RecordingChannel()
+    ).run()
+    assert result.analyzed == 1
+    assert llm.calls == result.llm_calls == 1
+    assert llm.profile_calls == [["general_ai"]]
+
+
+@pytest.mark.parametrize("invalid_case", ["missing", "unknown", "duplicate", "disabled"])
+async def test_profile_ids_must_exactly_match_enabled_configuration(
+    repository, profiles, analysis, invalid_case
+):
+    configured = profiles
+    if invalid_case == "missing":
+        analysis.profiles = analysis.profiles[:-1]
+    elif invalid_case == "unknown":
+        analysis.profiles[-1].profile = "marketing"
+    elif invalid_case == "duplicate":
+        analysis.profiles.append(analysis.profiles[0].model_copy(deep=True))
+    else:
+        configured = [
+            profile.model_copy(update={"enabled": False})
+            if profile.slug == "bank_risk"
+            else profile
+            for profile in profiles
+        ]
+    result = await RadarService(
+        StaticCollector([candidate()]),
+        StaticLLM(analysis),
+        repository,
+        configured,
+        RecordingChannel(),
+    ).run()
+    assert result.discarded == {"analysis_failed": 1}
 
 
 class RateLimitedLLM:

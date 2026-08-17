@@ -1,5 +1,7 @@
 slug: educator
 name: Educator
+icon: "🎓"
+enabled: true
 description: Novedades de IA con impacto práctico o investigativo en educación superior.
 topics:
   ai_tutors: 1.0

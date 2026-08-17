@@ -112,11 +112,37 @@ curl http://localhost:8000/health
 curl http://localhost:8000/ready
 ```
 
-## Fuentes y perfiles
+## Fuentes y perfiles dinámicos
 
 - `config/sources.yaml` contiene ocho feeds oficiales configurables.
-- `config/profiles/educator.yaml`, `course.yaml` y `bank.yaml` contienen temas, pesos, entidades y acciones.
+- Cada YAML dentro de `config/profiles/` define un perfil con `slug`, `name`, `icon`,
+  `description`, señales gratuitas y `enabled`.
 - Agregar una fuente o tema no requiere cambios de código; la configuración se valida al cargarla.
+
+Para desactivar temporalmente un perfil sin borrar sus scores históricos:
+
+```yaml
+slug: bank_risk
+name: Bank Risk Intelligence
+icon: "🏦"
+enabled: false
+```
+
+Para agregar un interés nuevo, alcanza con crear otro YAML:
+
+```yaml
+slug: my_profile
+name: My Profile
+icon: "🔎"
+enabled: true
+description: Novedades relevantes para este interés.
+topics:
+  relevant_topic: 1.0
+```
+
+Todos los perfiles activos se incorporan automáticamente a la misma llamada LLM por evento. Un
+perfil deshabilitado no participa del prompt, scoring, alerta, digest ni visualización actual, pero
+sus registros históricos permanecen en PostgreSQL.
 
 ## Tests y lint
 

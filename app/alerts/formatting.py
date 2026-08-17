@@ -2,28 +2,33 @@ import html
 
 from app.domain.models import Candidate
 from app.llm.schemas import ArticleAnalysis
-
-PROFILE_ICONS = {"course": "🤖", "bank": "🏦", "educator": "🎓"}
+from app.profiles.models import ProfileConfig
 
 
 def format_telegram_alert(
-    candidate: Candidate, analysis: ArticleAnalysis, scores: dict[str, int]
+    candidate: Candidate,
+    analysis: ArticleAnalysis,
+    scores: dict[str, int],
+    profiles: list[ProfileConfig],
 ) -> str:
     top_score = max(scores.values())
     evaluations = {item.profile: item for item in analysis.profiles}
+    profile_configs = {profile.slug: profile for profile in profiles if profile.enabled}
     profile_lines = "\n\n".join(
-        f"{PROFILE_ICONS.get(profile, '•')} <b>{html.escape(profile.title())}</b>\n"
+        f"{profile_configs[profile].icon} "
+        f"<b>{html.escape(profile_configs[profile].name)}</b>\n"
         f"Relevancia: {evaluations[profile].relevance_score}\nAlerta: {score}"
         for profile, score in sorted(scores.items(), key=lambda item: item[1], reverse=True)
     )
     actions = "\n".join(
-        f"{PROFILE_ICONS.get(item.profile, '•')} <b>{html.escape(item.profile.title())}</b>: "
+        f"{profile_configs[item.profile].icon} "
+        f"<b>{html.escape(profile_configs[item.profile].name)}</b>: "
         f"{html.escape(item.suggested_action)}"
         for item in analysis.profiles
         if item.suggested_action
     )
     reasons = "\n".join(
-        f"• {html.escape(item.profile.title())}: {html.escape(item.reason)}"
+        f"• {html.escape(profile_configs[item.profile].name)}: {html.escape(item.reason)}"
         for item in analysis.profiles
     )
     return (

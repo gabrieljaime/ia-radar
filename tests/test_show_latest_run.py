@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 
 from app.db.models import Article, Event, EventScore, PipelineRun, Profile, Source
@@ -56,12 +57,13 @@ def add_run(session, *, started_at, with_event=True):
     )
     for slug, relevance, alert in (
         ("educator", 40, 30),
-        ("course", 95, 84),
-        ("bank", 78, 70),
+        ("ai_agent_developer", 95, 84),
+        ("bank_risk", 78, 70),
+        ("general_ai", 97, 86),
     ):
         profile = session.scalar(select(Profile).where(Profile.slug == slug))
         if profile is None:
-            profile = Profile(slug=slug, name=slug.title())
+            profile = Profile(slug=slug, name=slug.replace("_", " ").title(), icon="◆")
             session.add(profile)
             session.flush()
         session.add(
@@ -76,14 +78,14 @@ def add_run(session, *, started_at, with_event=True):
                 relevance_reason=f"Reason for {slug}",
                 suggested_action=f"Action for {slug}",
                 related_topics=["agents"],
-                related_classes=[11] if slug == "course" else [],
+                related_classes=[11] if slug == "ai_agent_developer" else [],
             )
         )
     session.commit()
     return run
 
 
-def test_latest_run_and_summary_show_three_profiles(session):
+def test_latest_run_and_summary_show_dynamic_profiles(session):
     now = datetime.now(UTC)
     old = add_run(session, started_at=now - timedelta(hours=1))
     latest = add_run(session, started_at=now)
@@ -91,15 +93,17 @@ def test_latest_run_and_summary_show_three_profiles(session):
     assert code == 0
     assert str(latest.id) in output
     assert str(old.id) not in output
-    assert all(header in output for header in ("EDU_REL", "COUR_REL", "BANK_REL"))
-    assert "95" in output and "84" in output
+    assert all(
+        name in output for name in ("Educator", "Ai Agent Developer", "Bank Risk", "General Ai")
+    )
+    assert "relevancia 95 / alerta 84" in output
 
 
 def test_specific_run_and_details(session):
     run = add_run(session, started_at=datetime.now(UTC))
     code, output = render_run(session, run_id=run.id, details=True)
     assert code == 0
-    assert "COURSE" in output
+    assert "AI AGENT DEVELOPER" in output
     assert "relevance: 95" in output
     assert "alert: 84" in output
     assert "actionability: 90" in output
@@ -122,3 +126,14 @@ def test_missing_run_id_returns_nonzero(session):
 
 def test_no_runs_is_not_an_error(session):
     assert render_run(session) == (0, "No pipeline runs found.")
+
+
+@pytest.mark.parametrize("enabled_count", [1, 2, 4])
+def test_summary_supports_any_number_of_enabled_profiles(session, enabled_count):
+    run = add_run(session, started_at=datetime.now(UTC))
+    profiles = session.scalars(select(Profile).order_by(Profile.slug)).all()
+    for index, profile in enumerate(profiles):
+        profile.enabled = index < enabled_count
+    session.commit()
+    _, output = render_run(session, run_id=run.id)
+    assert output.count("relevancia ") == enabled_count

@@ -107,6 +107,7 @@ class Profile(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     slug: Mapped[str] = mapped_column(String(100), unique=True)
     name: Mapped[str] = mapped_column(String(200))
+    icon: Mapped[str] = mapped_column(String(20), default="•")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 

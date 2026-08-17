@@ -14,6 +14,7 @@ class ProfileActions(BaseModel):
 class ProfileConfig(BaseModel):
     slug: str
     name: str
+    icon: str = "•"
     description: str
     topics: dict[str, float]
     entities: dict[str, float] = Field(default_factory=dict)
