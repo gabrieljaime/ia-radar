@@ -1,0 +1,10 @@
+[Unit]
+Description=Send AI Radar digest daily at 08:00 Argentina time
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 America/Argentina/Buenos_Aires
+Persistent=true
+Unit=ai-radar-digest.service
+
+[Install]
+WantedBy=timers.target

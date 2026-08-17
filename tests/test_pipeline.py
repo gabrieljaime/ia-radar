@@ -6,10 +6,11 @@ from sqlalchemy import func, select
 
 from app.alerts.dry_run import DryRunAlertChannel
 from app.application.radar_service import RadarService
-from app.db.models import Alert, Article, CandidateRecord, Event, EventScore
+from app.db.models import Alert, Article, CandidateRecord, Event, EventScore, Profile
 from app.domain.models import Candidate
 from app.llm.base import LLMUsage
 from app.llm.provider import LLMRequestError, StructuredOutputError
+from scripts.show_latest_run import render_run
 
 
 def candidate(
@@ -147,6 +148,45 @@ async def test_verified_subject_name_is_persisted_on_the_event(
     ).run()
     event = session.scalar(select(Event))
     assert event.subject_name == "Model X"
+
+
+async def test_unicode_round_trip_llm_persistence_cli_and_telegram(
+    repository, session, profiles, analysis
+):
+    phrase = "está optimizado específicamente para expansión y aplicación"
+    analysis.what_happened = phrase
+    channel = RecordingChannel()
+    result = await RadarService(
+        StaticCollector([candidate()]), StaticLLM(analysis), repository, profiles, channel
+    ).run()
+    assert session.scalar(select(Event.what_happened)) == phrase
+    exit_code, cli_output = render_run(session, run_id=result.run_id, details=True)
+    assert exit_code == 0
+    assert phrase in cli_output
+    assert phrase in channel.messages[0]
+
+
+@pytest.mark.parametrize(
+    ("returned", "expected"),
+    [([11], [11]), ([101], []), ([301], []), ([], [])],
+)
+async def test_related_classes_are_a_closed_set(
+    repository, session, profiles, analysis, returned, expected
+):
+    course = next(item for item in analysis.profiles if item.profile == "ai_agent_developer")
+    course.related_classes = returned
+    llm = StaticLLM(analysis)
+    result = await RadarService(
+        StaticCollector([candidate()]), llm, repository, profiles, None
+    ).run()
+    course_row = session.scalar(
+        select(EventScore)
+        .join(Profile, EventScore.profile_id == Profile.id)
+        .where(Profile.slug == "ai_agent_developer")
+    )
+    assert course_row.related_classes == expected
+    assert result.analyzed == 1
+    assert llm.calls == (2 if returned and returned != [11] else 1)
 
 
 async def test_comparison_article_without_exact_model_id_does_not_false_merge(

@@ -44,3 +44,10 @@ def test_general_ai_profile_is_calibrated_for_significance_not_corporate_noise(p
     general = next(profile for profile in profiles if profile.slug == "general_ai")
     assert "nuevas generaciones" in general.description
     assert "ruido corporativo" in general.description
+
+
+def test_percent_encoded_generated_text_is_rejected(analysis):
+    payload = analysis.model_dump()
+    payload["what_happened"] = "est%e1 optimizado"
+    with pytest.raises(ValidationError, match="percent-encoded"):
+        ArticleAnalysis.model_validate(payload)

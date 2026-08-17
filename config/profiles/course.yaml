@@ -30,3 +30,6 @@ actions:
   identify_related_class: true
   suggest_demo: true
   suggest_course_update: true
+classes:
+  - class_id: 11
+    class_name: Clase 11

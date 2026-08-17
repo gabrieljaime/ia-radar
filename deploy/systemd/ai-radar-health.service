@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Radar source health check
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ai-radar
+ExecStart=/usr/bin/flock -n /run/lock/ai-radar-health.lock /usr/bin/docker compose run --rm radar python scripts/check_sources.py
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

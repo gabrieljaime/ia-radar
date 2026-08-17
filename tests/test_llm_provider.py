@@ -161,10 +161,38 @@ async def test_provider_isolates_prompt_injection_and_sends_reduced_profile_payl
         "name",
         "description",
         "suggested_actions",
+        "valid_classes",
     }
     assert all("topics" not in profile for profile in decoded_profiles)
     assert all("entities" not in profile for profile in decoded_profiles)
     assert all("weights" not in profile for profile in decoded_profiles)
+    await provider.close()
+
+
+async def test_provider_sends_real_class_closed_set_and_unicode_schema(profiles):
+    analysis = Path("tests/fixtures/analysis.json").read_text(encoding="utf-8")
+    captured = {}
+
+    async def handler(request):
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": analysis}}]})
+
+    provider = OpenAICompatibleLLMProvider("key", "model", "https://llm.example")
+    await provider.client.aclose()
+    provider.client = httpx.AsyncClient(
+        base_url="https://llm.example", transport=httpx.MockTransport(handler)
+    )
+    item = Candidate("Official", "https://feed", 100, True, "AI", "https://x", "", None)
+    await provider.analyze_article(item, profiles)
+    prompt = captured["messages"][1]["content"]
+    payload = json.loads(prompt.split("ENABLED_PROFILES=", 1)[1].split("\n<ARTICLE_DATA>", 1)[0])
+    course = next(profile for profile in payload if profile["profile_id"] == "ai_agent_developer")
+    assert course["valid_classes"] == [{"class_id": 11, "class_name": "Clase 11"}]
+    items = captured["response_format"]["json_schema"]["schema"]["$defs"]["ProfileEvaluation"][
+        "properties"
+    ]["related_classes"]["items"]
+    assert items["enum"] == [11]
+    assert "Never percent-encode" in prompt
     await provider.close()
 
 

@@ -11,6 +11,11 @@ class ProfileActions(BaseModel):
     highlight_regulatory_impact: bool = False
 
 
+class RelatedClass(BaseModel):
+    class_id: int
+    class_name: str
+
+
 class ProfileConfig(BaseModel):
     slug: str
     name: str
@@ -19,6 +24,7 @@ class ProfileConfig(BaseModel):
     topics: dict[str, float]
     entities: dict[str, float] = Field(default_factory=dict)
     actions: ProfileActions = Field(default_factory=ProfileActions)
+    classes: list[RelatedClass] = Field(default_factory=list)
     enabled: bool = True
 
 

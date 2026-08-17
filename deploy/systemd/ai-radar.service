@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Radar collection and analysis job
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ai-radar
+ExecStart=/usr/bin/flock -n /run/lock/ai-radar.lock /usr/bin/docker compose run --rm radar python scripts/run_radar.py
+TimeoutStartSec=110min
+
+[Install]
+WantedBy=multi-user.target

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -11,6 +12,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models import Article, Event, EventScore, PipelineRun, Profile, Source
 from app.db.session import create_session_factory
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 @dataclass(slots=True)
@@ -145,6 +149,8 @@ def _details(events: list[DisplayEvent]) -> list[str]:
                 f"PUBLISHED:\n{item.article.published_at if item.article else '-'}",
                 f"CONFIDENCE:\n{item.event.confidence:.2f}",
                 f"HYPE:\n{item.event.hype_probability:.2f}",
+                f"WHAT_HAPPENED:\n{item.event.what_happened or '-'}",
+                f"WHY_IT_MATTERS:\n{item.event.why_it_matters or '-'}",
                 "PRIMARY_SOURCE_VERIFIED:\n"
                 + ("yes" if item.event.primary_source_verified else "no"),
             ]

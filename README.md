@@ -204,3 +204,10 @@ Los workflows `Tests`, `RSS smoke test` y `AI Radar dry-run` pueden iniciarse ma
 - La alerta se persiste como `pending` antes del request y luego queda `sent` o `failed`; un fallo no borra su estado ni provoca reenvíos automáticos ambiguos.
 
 Consulte la propuesta y el plan posterior en [`docs/architecture-proposal.md`](docs/architecture-proposal.md).
+
+## Producción en servidor Linux
+
+El deployment estable usa Docker Compose para `postgres` y `radar`, y timers systemd del host para
+Radar, digest y health de fuentes. GitHub Actions no programa ejecuciones de producción. Consulte
+[`docs/production-deployment.md`](docs/production-deployment.md) para instalación Ubuntu desde cero,
+validación sin Telegram, operación, backups, restore y rollback.

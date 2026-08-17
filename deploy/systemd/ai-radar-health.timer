@@ -1,0 +1,10 @@
+[Unit]
+Description=Check AI Radar sources daily at 07:30 Argentina time
+
+[Timer]
+OnCalendar=*-*-* 07:30:00 America/Argentina/Buenos_Aires
+Persistent=true
+Unit=ai-radar-health.service
+
+[Install]
+WantedBy=timers.target

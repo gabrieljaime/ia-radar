@@ -36,6 +36,32 @@ def validate_factual_anchors(candidate, analysis) -> None:
         )
 
 
+def invalid_related_classes(analysis, profiles: list[ProfileConfig]) -> dict[str, list[int]]:
+    allowed = {profile.slug: {item.class_id for item in profile.classes} for profile in profiles}
+    return {
+        evaluation.profile: [
+            value
+            for value in evaluation.related_classes
+            if value not in allowed.get(evaluation.profile, set())
+        ]
+        for evaluation in analysis.profiles
+        if any(
+            value not in allowed.get(evaluation.profile, set())
+            for value in evaluation.related_classes
+        )
+    }
+
+
+def remove_invalid_related_classes(analysis, profiles: list[ProfileConfig]) -> None:
+    allowed = {profile.slug: {item.class_id for item in profile.classes} for profile in profiles}
+    for evaluation in analysis.profiles:
+        evaluation.related_classes = [
+            value
+            for value in evaluation.related_classes
+            if value in allowed.get(evaluation.profile, set())
+        ]
+
+
 class RadarService:
     def __init__(
         self,
@@ -153,12 +179,17 @@ class RadarService:
         assert self.llm is not None
         try:
             analysis = None
-            for factual_attempt in range(2):
+            for structured_attempt in range(2):
                 result.llm_calls += 1
                 try:
                     analysis = await self.llm.analyze_article(
-                        candidate, self.enabled_profiles, retry=factual_attempt > 0
+                        candidate, self.enabled_profiles, retry=structured_attempt > 0
                     )
+                except StructuredOutputError:
+                    if structured_attempt == 0:
+                        logger.warning("analysis_structured_output_retry")
+                        continue
+                    raise
                 finally:
                     usage = self.llm.last_usage
                     result.input_tokens += usage.input_tokens
@@ -166,13 +197,26 @@ class RadarService:
                     result.estimated_cost_usd += usage.estimated_cost_usd
                 try:
                     validate_factual_anchors(candidate, analysis)
+                    invalid_classes = invalid_related_classes(analysis, self.enabled_profiles)
+                    if invalid_classes and structured_attempt == 0:
+                        logger.warning(
+                            "analysis_related_classes_retry",
+                            extra={"invalid_related_classes": invalid_classes},
+                        )
+                        continue
+                    if invalid_classes:
+                        logger.warning(
+                            "analysis_related_classes_removed",
+                            extra={"invalid_related_classes": invalid_classes},
+                        )
+                        remove_invalid_related_classes(analysis, self.enabled_profiles)
                     break
                 except StructuredOutputError:
                     log_extra = {
                         "exact_model_id": candidate.exact_model_id,
                         "returned_subject_name": analysis.subject_name,
                     }
-                    if factual_attempt == 1:
+                    if structured_attempt == 1:
                         logger.warning("analysis_factual_anchor_rejected", extra=log_extra)
                         raise
                     logger.warning("analysis_factual_anchor_retry", extra=log_extra)

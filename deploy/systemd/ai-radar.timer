@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AI Radar every two hours
+
+[Timer]
+OnCalendar=*-*-* 00/2:00:00 America/Argentina/Buenos_Aires
+Persistent=true
+RandomizedDelaySec=5min
+Unit=ai-radar.service
+
+[Install]
+WantedBy=timers.target
