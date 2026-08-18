@@ -80,6 +80,13 @@ class RadarRepository:
         run.input_tokens = result.input_tokens
         run.output_tokens = result.output_tokens
         run.estimated_cost_usd = result.estimated_cost_usd
+        run.candidates_new = result.candidates_new
+        run.prefilter_passed = result.prefilter_passed
+        run.primary_bypass_passed = result.primary_bypass_passed
+        run.pending_reanalysis = result.pending_reanalysis
+        run.evidence_reanalysis = result.evidence_reanalysis
+        run.analysis_retries = result.analysis_retries
+        run.llm_call_limit_reached = result.llm_call_limit_reached
         run.discard_counts = result.discarded
         run.error_summary = result.errors
         run.finished_at = datetime.now(UTC)

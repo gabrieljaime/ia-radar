@@ -1,10 +1,21 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Response, status
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.db.session import create_session_factory
+from app.web.errors import register_error_handlers
+from app.web.router import router as web_router
 
 app = FastAPI(title="AI Radar", version="0.1.0")
+
+app.mount(
+    "/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static"
+)
+register_error_handlers(app)
+app.include_router(web_router)
 
 
 @app.get("/health")

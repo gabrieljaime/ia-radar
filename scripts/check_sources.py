@@ -3,12 +3,15 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from sqlalchemy import select
 
 from app.collectors.github_releases import GitHubReleasesCollector
 from app.collectors.huggingface_models import HuggingFaceModelsCollector
 from app.collectors.web_articles import WebArticlesCollector
 from app.collectors.web_changelog import WebChangelogCollector
 from app.core.config import get_settings, load_sources
+from app.db.models import Source, SourceHealth
+from app.db.session import create_session_factory
 from scripts.check_feeds import check_feed
 
 
@@ -114,7 +117,39 @@ async def main() -> int:
     print("SOURCE\tTYPE\tHTTP\tITEMS\tLATEST\tSTATUS")
     for row in rows:
         print("{source}\t{type}\t{http}\t{items}\t{latest}\t{status}".format(**row))
+    persist_health(settings, rows)
     return 0 if all(row["status"] in {"OK", "STALE"} for row in rows) else 1
+
+
+def persist_health(settings, rows: list[dict[str, object]]) -> None:
+    """Store the latest health snapshot per source so the dashboard can read it without
+    issuing live HTTP requests on page load."""
+    with create_session_factory(settings.database_url)() as session:
+        for row in rows:
+            source = session.scalar(
+                select(Source).where(
+                    Source.source_type == row["type"], Source.name == row["source"]
+                )
+            )
+            if source is None:
+                continue
+            latest_raw = row["latest"]
+            latest_item_at = (
+                datetime.fromisoformat(str(latest_raw))
+                if latest_raw and latest_raw != "unknown"
+                else None
+            )
+            health = session.scalar(select(SourceHealth).where(SourceHealth.source_id == source.id))
+            if health is None:
+                health = SourceHealth(source_id=source.id)
+                session.add(health)
+            health.status = str(row["status"])
+            health.http_status = str(row["http"])
+            health.items_found = int(row["items"])
+            health.latest_item_at = latest_item_at
+            health.error_message = None
+            health.checked_at = datetime.now(UTC)
+        session.commit()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,26 @@
+<aside class="sidebar">
+  <div class="brand">AI <span>RADAR</span></div>
+  <nav class="nav">
+    <a class="nav-item {% if active_nav == 'overview' %}active{% endif %}" href="/">
+      <span class="nav-dot"></span> Overview
+    </a>
+    <a class="nav-item {% if active_nav == 'radar' %}active{% endif %}" href="/radar">
+      <span class="nav-dot"></span> Radar
+    </a>
+    <a class="nav-item {% if active_nav == 'sources' %}active{% endif %}" href="/sources">
+      <span class="nav-dot"></span> Sources
+    </a>
+    <a class="nav-item {% if active_nav == 'runs' %}active{% endif %}" href="/runs">
+      <span class="nav-dot"></span> Runs
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="system-state">
+      <span class="state-dot {{ system_state|default('ok') }}"></span>
+      {{ system_label|default('Operational') }}
+    </div>
+    <div class="version-line">
+      v{{ app_version|default('0.1.0') }}{% if app_commit %} · {{ app_commit[:7] }}{% endif %}
+    </div>
+  </div>
+</aside>

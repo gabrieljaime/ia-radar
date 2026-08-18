@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ detail.event.title }} · AI Radar{% endblock %}
+{% block content %}
+<a class="back-link" href="/radar">← Back to Radar</a>
+
+<div class="detail-header">
+  <h1>{{ detail.event.title }}</h1>
+  <div class="detail-meta">
+    {% if detail.event.subject_name %}<span>{{ detail.event.subject_name }}</span>{% endif %}
+    <span>First seen {{ detail.event.first_seen_at|local_time }}</span>
+    <span>Last seen {{ detail.event.last_seen_at|local_time }}</span>
+    <span>Confidence {{ "%.2f"|format(detail.event.confidence) }}</span>
+    <span>Hype {{ "%.2f"|format(detail.event.hype_probability) }}</span>
+    <span>{% if detail.event.primary_source_verified %}Primary source: verified{% else %}Primary source: not verified{% endif %}</span>
+  </div>
+  {% if detail.event.primary_source_url %}
+  <p><a href="{{ detail.event.primary_source_url }}" target="_blank" rel="noopener">Primary source ↗</a></p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <div class="section-title">Qué Pasó</div>
+  <div class="card prose">{{ detail.event.what_happened or "—" }}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">Por Qué Importa</div>
+  <div class="card prose">{{ detail.event.why_it_matters or "—" }}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">Profile Analysis</div>
+  {% for item in detail.scores %}
+  <div class="profile-card">
+    <div class="profile-card-header">
+      <strong><span class="dot-{{ item.profile.slug|profile_color }}">●</span> {{ item.profile.name }}</strong>
+    </div>
+    <div class="score-row">
+      <div class="score-pill"><div class="label">Relevance</div><div class="value">{{ item.score.relevance_score }}</div></div>
+      <div class="score-pill"><div class="label">Alert</div><div class="value">{{ item.score.alert_score }}</div></div>
+      <div class="score-pill"><div class="label">Novelty</div><div class="value">{{ item.score.novelty_score }}</div></div>
+      <div class="score-pill"><div class="label">Actionability</div><div class="value">{{ item.score.actionability_score }}</div></div>
+      <div class="score-pill"><div class="label">Strategic Impact</div><div class="value">{{ item.score.strategic_impact_score }}</div></div>
+    </div>
+    <p class="prose">{{ item.score.relevance_reason }}</p>
+    {% if item.score.suggested_action %}<p class="prose"><strong>Suggested action:</strong> {{ item.score.suggested_action }}</p>{% endif %}
+    {% if item.score.related_topics %}
+    <div class="tag-list">{% for topic in item.score.related_topics %}<span class="tag">{{ topic }}</span>{% endfor %}</div>
+    {% endif %}
+    {% if item.score.related_classes %}
+    <div class="tag-list">{% for cls in item.score.related_classes %}<span class="tag">Class {{ cls }}</span>{% endfor %}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card empty-state">No profile scoring available.</div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <div class="section-title">Sources</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Source</th><th>Title</th><th>Published</th><th>Type</th></tr>
+      </thead>
+      <tbody>
+        {% for item in detail.articles %}
+        <tr>
+          <td>{{ item.source.name if item.source else "—" }}</td>
+          <td><a href="{{ item.article.canonical_url }}" target="_blank" rel="noopener">{{ item.article.title }}</a></td>
+          <td>{{ item.article.published_at|local_time_short if item.article.published_at else "—" }}</td>
+          <td>{% if item.source and item.source.is_primary %}Primary{% else %}Secondary{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Analysis Run</div>
+  <div class="card">
+    {% if detail.analyzed_run %}
+    <a href="/runs/{{ detail.analyzed_run.id }}">Run {{ detail.analyzed_run.id }}</a> ·
+    Analyzed {{ detail.event.updated_at|local_time }}
+    {% else %}
+    —
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

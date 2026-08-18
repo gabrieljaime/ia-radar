@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Overview · AI Radar{% endblock %}
+{% block content %}
+{% set page_title = "Overview" %}
+{% set page_subtitle = "Pipeline status, latest signal and source health at a glance." %}
+{% include "partials/header.html" %}
+
+<div class="kpi-grid">
+  <div class="card kpi-card">
+    <div class="kpi-label">Latest Run</div>
+    <div class="kpi-value small">{{ run.started_at|local_time_short if run else "—" }}</div>
+  </div>
+  <div class="card kpi-card">
+    <div class="kpi-label">Articles Found</div>
+    <div class="kpi-value">{{ run.collected if run else "—" }}</div>
+  </div>
+  <div class="card kpi-card">
+    <div class="kpi-label">Events Analyzed</div>
+    <div class="kpi-value">{{ run.analyzed if run else "—" }}</div>
+  </div>
+  <div class="card kpi-card">
+    <div class="kpi-label">Alerts</div>
+    <div class="kpi-value">{{ run.alerts_sent if run else "—" }}</div>
+  </div>
+  <div class="card kpi-card">
+    <div class="kpi-label">LLM Calls</div>
+    <div class="kpi-value">{{ run.llm_calls if run else "—" }}</div>
+  </div>
+  <div class="card kpi-card">
+    <div class="kpi-label">Errors</div>
+    <div class="kpi-value">{{ run.error_summary|length if run else "—" }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">System Status</div>
+  <div class="status-grid">
+    {% for item in status_items %}
+    <div class="card status-row">
+      <div>
+        <div class="name">{{ item.name }}</div>
+        <div class="detail">{{ item.detail }}</div>
+      </div>
+      <span class="badge {{ item.state }}">{{ item.state }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Latest High-Signal Events</div>
+  {% if high_signal_events %}
+  <div class="event-list">
+    {% for item in high_signal_events %}
+    <a class="event-card" href="/radar/{{ item.event.id }}">
+      <div class="alert-score {% if item.alert and item.alert >= 90 %}high{% elif item.alert and item.alert >= 70 %}mid{% endif %}">
+        {{ item.alert if item.alert is not none else "—" }}
+      </div>
+      <div class="event-main">
+        <p class="event-title">{{ item.event.title }}</p>
+        <div class="event-meta">
+          <span>{{ item.source_name or "—" }}</span>
+          <span>{{ item.published_at|local_time_short if item.published_at else "—" }}</span>
+          {% if item.top_profile %}<span>{{ item.top_profile }}</span>{% endif %}
+          <span>Confidence {{ "%.2f"|format(item.confidence) }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card empty-state">
+    <div class="empty-icon">◌</div>
+    No events detected yet.
+  </div>
+  {% endif %}
+</div>
+
+<div class="section">
+  <div class="section-title">Source Health Summary</div>
+  <div class="card">
+    {{ source_summary.total }} sources · {{ source_summary.healthy }} healthy ·
+    {{ source_summary.stale }} stale · {{ source_summary.error }} errors
+    {% if source_summary.unknown %} · {{ source_summary.unknown }} unchecked{% endif %}
+  </div>
+</div>
+{% endblock %}

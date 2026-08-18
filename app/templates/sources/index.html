@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Sources · AI Radar{% endblock %}
+{% block content %}
+{% set page_title = "Sources" %}
+{% set page_subtitle = rows|length ~ " sources configured" %}
+{% include "partials/header.html" %}
+
+{% if rows %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th><th>Type</th><th>Primary</th><th>Verification</th>
+        <th>Last Fetch</th><th>Latest Item</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.source.name }}</td>
+        <td>{{ row.source.source_type }}</td>
+        <td>{{ "Primary" if row.source.is_primary else "Secondary" }}</td>
+        <td>{{ "Required" if row.source.requires_primary_verification else "—" }}</td>
+        <td>{{ row.last_fetch_at|local_time_short if row.last_fetch_at else "—" }}</td>
+        <td>{{ row.latest_published_at|local_time_short if row.latest_published_at else "—" }}</td>
+        <td><span class="badge {{ row.status_label }}">{{ row.status_label }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty-state">
+  <div class="empty-icon">◌</div>
+  No sources configured yet.
+</div>
+{% endif %}
+{% endblock %}

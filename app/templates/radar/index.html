@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Radar · AI Radar{% endblock %}
+{% block content %}
+{% set page_title = "Radar" %}
+{% set page_subtitle = result.total ~ " event" ~ ("s" if result.total != 1 else "") ~ " detected" %}
+{% include "partials/header.html" %}
+
+<form class="filter-bar" hx-get="/radar" hx-target="#event-list-region" hx-push-url="true"
+      hx-trigger="change, keyup changed delay:500ms from:input[name='search']">
+  <select name="profile">
+    <option value="">All profiles</option>
+    {% for profile in profiles %}
+    <option value="{{ profile.slug }}" {% if filters.profile == profile.slug %}selected{% endif %}>
+      {{ profile.icon }} {{ profile.name }}
+    </option>
+    {% endfor %}
+  </select>
+  <select name="source">
+    <option value="">All sources</option>
+    {% for source in sources %}
+    <option value="{{ source.id }}" {% if filters.source_id == source.id %}selected{% endif %}>
+      {{ source.name }}
+    </option>
+    {% endfor %}
+  </select>
+  <select name="days">
+    <option value="">All time</option>
+    <option value="1" {% if filters.days == 1 %}selected{% endif %}>Last 24h</option>
+    <option value="3" {% if filters.days == 3 %}selected{% endif %}>Last 3 days</option>
+    <option value="7" {% if filters.days == 7 %}selected{% endif %}>Last 7 days</option>
+    <option value="30" {% if filters.days == 30 %}selected{% endif %}>Last 30 days</option>
+  </select>
+  <select name="primary">
+    <option value="">Any source type</option>
+    <option value="true" {% if filters.primary_only == true %}selected{% endif %}>Primary verified</option>
+    <option value="false" {% if filters.primary_only == false %}selected{% endif %}>Not verified</option>
+  </select>
+  <input type="number" name="min_relevance" min="0" max="100" placeholder="Min relevance"
+         value="{{ filters.min_relevance if filters.min_relevance is not none else '' }}" />
+  <input type="number" name="min_alert" min="0" max="100" placeholder="Min alert"
+         value="{{ filters.min_alert if filters.min_alert is not none else '' }}" />
+  <input type="search" name="search" placeholder="Search title…" value="{{ filters.search or '' }}" />
+</form>
+
+<div id="event-list-region">
+  {% include "radar/_list.html" %}
+</div>
+{% endblock %}

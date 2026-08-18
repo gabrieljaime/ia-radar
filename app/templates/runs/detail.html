@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Run {{ detail.run.id }} · AI Radar{% endblock %}
+{% block content %}
+<a class="back-link" href="/runs">← Back to Runs</a>
+
+<div class="detail-header">
+  <h1>Run {{ detail.run.id }}</h1>
+  <div class="detail-meta">
+    <span>Started {{ detail.run.started_at|local_time }}</span>
+    <span>Finished {{ detail.run.finished_at|local_time if detail.run.finished_at else "—" }}</span>
+    <span>Duration {{ detail.duration.total_seconds()|int ~ "s" if detail.duration else "—" }}</span>
+    <span><span class="badge {% if detail.run.status == 'completed' %}ok{% elif detail.run.status == 'running' %}warning{% else %}error{% endif %}">{{ detail.run.status }}</span></span>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="card kpi-card"><div class="kpi-label">Articles Found</div><div class="kpi-value">{{ detail.run.collected }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Candidates New</div><div class="kpi-value">{{ detail.run.candidates_new }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Prefilter Passed</div><div class="kpi-value">{{ detail.run.prefilter_passed }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Primary Bypass Passed</div><div class="kpi-value">{{ detail.run.primary_bypass_passed }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Events Analyzed</div><div class="kpi-value">{{ detail.run.analyzed }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">LLM Calls</div><div class="kpi-value">{{ detail.run.llm_calls }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Alerts Sent</div><div class="kpi-value">{{ detail.run.alerts_sent }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Errors</div><div class="kpi-value">{{ detail.run.error_summary|length }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Pending Reanalysis</div><div class="kpi-value">{{ detail.run.pending_reanalysis }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Evidence Reanalysis</div><div class="kpi-value">{{ detail.run.evidence_reanalysis }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">Analysis Retries</div><div class="kpi-value">{{ detail.run.analysis_retries }}</div></div>
+  <div class="card kpi-card"><div class="kpi-label">LLM Call Limit Reached</div><div class="kpi-value small">{{ "Yes" if detail.run.llm_call_limit_reached else "No" }}</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Discarded</div>
+  {% if detail.run.discard_counts %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Reason</th><th>Count</th></tr></thead>
+      <tbody>
+        {% for reason, count in detail.run.discard_counts.items()|sort %}
+        <tr><td>{{ reason }}</td><td>{{ count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty-state">No discards recorded.</div>
+  {% endif %}
+</div>
+
+<div class="section">
+  <div class="section-title">LLM Usage</div>
+  <div class="kpi-grid">
+    <div class="card kpi-card"><div class="kpi-label">Input Tokens</div><div class="kpi-value">{{ detail.run.input_tokens }}</div></div>
+    <div class="card kpi-card"><div class="kpi-label">Output Tokens</div><div class="kpi-value">{{ detail.run.output_tokens }}</div></div>
+    <div class="card kpi-card">
+      <div class="kpi-label">Estimated Cost</div>
+      <div class="kpi-value small">
+        {% if detail.cost_configured %}${{ "%.6f"|format(detail.run.estimated_cost_usd) }}{% else %}Cost estimation not configured{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if detail.run.error_summary %}
+<div class="section">
+  <div class="section-title">Errors</div>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        {% for error in detail.run.error_summary %}
+        <tr><td>{{ error }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="section">
+  <div class="section-title">Events Analyzed</div>
+  {% if detail.events %}
+  <div class="event-list">
+    {% for item in detail.events %}
+    <a class="event-card" href="/radar/{{ item.event.id }}">
+      <div class="alert-score {% if item.max_alert >= 90 %}high{% elif item.max_alert >= 70 %}mid{% endif %}">{{ item.max_alert }}</div>
+      <div class="event-main">
+        <p class="event-title">{{ item.event.title }}</p>
+        <div class="event-meta">
+          <span>{{ item.source_name or "—" }}</span>
+          <span>{{ item.published_at|local_time_short if item.published_at else "—" }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card empty-state">No events analyzed in this run.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Runs · AI Radar{% endblock %}
+{% block content %}
+{% set page_title = "Runs" %}
+{% set page_subtitle = result.total ~ " pipeline runs recorded" %}
+{% include "partials/header.html" %}
+
+{% if result.items %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Started</th><th>Duration</th><th>Status</th><th>Articles</th>
+        <th>Events</th><th>LLM calls</th><th>Alerts</th><th>Errors</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in result.items %}
+      <tr onclick="window.location='/runs/{{ run.id }}'" style="cursor:pointer">
+        <td><a href="/runs/{{ run.id }}">{{ run.started_at|local_time }}</a></td>
+        <td>{% if run.finished_at %}{{ ((run.finished_at - run.started_at).total_seconds())|int }}s{% else %}—{% endif %}</td>
+        <td><span class="badge {% if run.status == 'completed' %}ok{% elif run.status == 'running' %}warning{% else %}error{% endif %}">{{ run.status }}</span></td>
+        <td>{{ run.collected }}</td>
+        <td>{{ run.analyzed }}</td>
+        <td>{{ run.llm_calls }}</td>
+        <td>{{ run.alerts_sent }}</td>
+        <td>{{ run.error_summary|length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pagination">
+  {% if result.has_prev %}
+  <a href="/runs?page={{ result.page - 1 }}">← Prev</a>
+  {% else %}
+  <span class="disabled">← Prev</span>
+  {% endif %}
+  <span>Page {{ result.page }} of {{ result.total_pages }}</span>
+  {% if result.has_next %}
+  <a href="/runs?page={{ result.page + 1 }}">Next →</a>
+  {% else %}
+  <span class="disabled">Next →</span>
+  {% endif %}
+</div>
+{% else %}
+<div class="card empty-state">
+  <div class="empty-icon">◌</div>
+  No pipeline runs yet.
+</div>
+{% endif %}
+{% endblock %}

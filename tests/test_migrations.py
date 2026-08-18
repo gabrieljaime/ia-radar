@@ -118,8 +118,18 @@ def test_fresh_postgres_migration_walk_reaches_head_idempotently(empty_postgres_
     assert "requires_primary_verification" in column_names(database_url, "sources")
     assert "icon" in column_names(database_url, "profiles")
     assert "digests" in table_names(database_url)
+    assert "source_health" in table_names(database_url)
+    assert {
+        "candidates_new",
+        "prefilter_passed",
+        "primary_bypass_passed",
+        "pending_reanalysis",
+        "evidence_reanalysis",
+        "analysis_retries",
+        "llm_call_limit_reached",
+    } <= set(column_names(database_url, "pipeline_runs"))
     current = run_alembic(database_url, "current").stdout
-    assert "0008 (head)" in current
+    assert "0010 (head)" in current
 
     run_alembic(database_url, "upgrade", "head")
     assert column_names(database_url, "articles").count("source_last_modified_at") == 1
@@ -136,6 +146,7 @@ def test_fresh_postgres_migration_walk_reaches_head_idempotently(empty_postgres_
         "candidate_records",
         "event_scores",
         "digests",
+        "source_health",
     } & set(table_names(database_url))
 
 

@@ -1,0 +1,51 @@
+{% if result.items %}
+<div class="event-list">
+  {% for item in result.items %}
+  <a class="event-card" href="/radar/{{ item.event.id }}">
+    <div class="alert-score {% if item.max_alert >= 90 %}high{% elif item.max_alert >= 70 %}mid{% endif %}">
+      {{ item.max_alert }}
+    </div>
+    <div class="event-main">
+      <p class="event-title">{{ item.event.title }}</p>
+      <div class="event-meta">
+        {% if item.event.subject_name %}<span>{{ item.event.subject_name }}</span>{% endif %}
+        <span>{{ item.source_name or "—" }}</span>
+        <span>{{ item.published_at|local_time_short if item.published_at else "—" }}</span>
+        <span>Confidence {{ "%.2f"|format(item.event.confidence) }}</span>
+        <span>Hype {{ "%.2f"|format(item.event.hype_probability) }}</span>
+        <span>{% if item.event.primary_source_verified %}Primary source: verified{% else %}Primary source: not verified{% endif %}</span>
+      </div>
+    </div>
+    <div class="event-badges">
+      {% for badge in item.badges %}
+      <span class="profile-chip"><span class="dot-{{ badge.profile_name|profile_color }}">●</span>
+        {{ badge.profile_name }} · R{{ badge.relevance }} · A{{ badge.alert }}</span>
+      {% endfor %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="pagination">
+  {% if result.has_prev %}
+  <a href="/radar?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ result.page - 1 }}"
+     hx-get="/radar?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ result.page - 1 }}"
+     hx-target="#event-list-region" hx-push-url="true">← Prev</a>
+  {% else %}
+  <span class="disabled">← Prev</span>
+  {% endif %}
+  <span>Page {{ result.page }} of {{ result.total_pages }}</span>
+  {% if result.has_next %}
+  <a href="/radar?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ result.page + 1 }}"
+     hx-get="/radar?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ result.page + 1 }}"
+     hx-target="#event-list-region" hx-push-url="true">Next →</a>
+  {% else %}
+  <span class="disabled">Next →</span>
+  {% endif %}
+</div>
+{% else %}
+<div class="card empty-state">
+  <div class="empty-icon">◌</div>
+  No events detected yet.
+</div>
+{% endif %}

@@ -178,10 +178,36 @@ class PipelineRun(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
     estimated_cost_usd: Mapped[float] = mapped_column(Float, default=0)
+    candidates_new: Mapped[int] = mapped_column(Integer, default=0)
+    prefilter_passed: Mapped[int] = mapped_column(Integer, default=0)
+    primary_bypass_passed: Mapped[int] = mapped_column(Integer, default=0)
+    pending_reanalysis: Mapped[int] = mapped_column(Integer, default=0)
+    evidence_reanalysis: Mapped[int] = mapped_column(Integer, default=0)
+    analysis_retries: Mapped[int] = mapped_column(Integer, default=0)
+    llm_call_limit_reached: Mapped[bool] = mapped_column(Boolean, default=False)
     discard_counts: Mapped[dict[str, int]] = mapped_column(JSON, default=dict)
     error_summary: Mapped[list[str]] = mapped_column(JSON, default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SourceHealth(Base):
+    """Latest persisted health check result for a source (one row per source).
+
+    Populated by scripts/check_sources.py (run daily by the ai-radar-health
+    timer), never by web requests, so the dashboard never triggers live
+    outbound checks on page load.
+    """
+
+    __tablename__ = "source_health"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    source_id: Mapped[UUID] = mapped_column(ForeignKey("sources.id"), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20))
+    http_status: Mapped[str | None] = mapped_column(String(20))
+    items_found: Mapped[int] = mapped_column(Integer, default=0)
+    latest_item_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class Digest(Base):
