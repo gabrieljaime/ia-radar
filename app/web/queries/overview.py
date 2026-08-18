@@ -7,15 +7,11 @@ from sqlalchemy import desc, func, select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import Article, Event, EventScore, PipelineRun, Profile, Source, SourceHealth
+from app.web.recency import RECENT_SIGNAL_DAYS
+from app.web.tz import as_utc
 
 RADAR_INTERVAL = timedelta(hours=2)
 STALE_RUN_AFTER = RADAR_INTERVAL * 3
-
-
-def _as_utc(value: datetime) -> datetime:
-    # SQLite (used in tests) drops tzinfo on round-trip even for
-    # DateTime(timezone=True) columns; Postgres (production) does not.
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 @dataclass(slots=True)
@@ -93,7 +89,7 @@ def get_system_status(
     else:
         items.append(StatusItem("Sources", "ok", f"{source_summary.healthy} healthy"))
 
-    running_for = datetime.now(UTC) - _as_utc(run.started_at) if run else timedelta(0)
+    running_for = datetime.now(UTC) - as_utc(run.started_at) if run else timedelta(0)
     if run is None:
         items.append(StatusItem("Last Radar Run", "warning", "No runs yet"))
     elif run.status == "completed_with_errors":
@@ -102,7 +98,7 @@ def get_system_status(
         items.append(StatusItem("Last Radar Run", "error", "Run appears stuck"))
     elif run.finished_at is None:
         items.append(StatusItem("Last Radar Run", "ok", "Running"))
-    elif datetime.now(UTC) - _as_utc(run.finished_at) > STALE_RUN_AFTER:
+    elif datetime.now(UTC) - as_utc(run.finished_at) > STALE_RUN_AFTER:
         items.append(StatusItem("Last Radar Run", "warning", "No recent run"))
     else:
         items.append(StatusItem("Last Radar Run", "ok", "Completed"))
@@ -110,17 +106,28 @@ def get_system_status(
 
 
 def get_high_signal_events(session: Session, limit: int = 5) -> list[HighSignalEvent]:
-    cutoff = datetime.now(UTC) - timedelta(days=14)
+    """The events driving "what's happening now" on Overview.
+
+    Filtered and ordered in the database by published_at (falling back to
+    first_seen_at only when an event has no dated article at all), never by
+    first_seen_at/last_seen_at alone -- otherwise an old event re-touched by a
+    bootstrap/backfill run would look like current signal.
+    """
+    cutoff = datetime.now(UTC) - timedelta(days=RECENT_SIGNAL_DAYS)
+    max_alert = func.max(EventScore.alert_score)
+    recency_at = func.coalesce(func.max(Article.published_at), Event.first_seen_at)
     rows = session.execute(
-        select(Event, func.max(EventScore.alert_score).label("max_alert"))
+        select(Event, max_alert.label("max_alert"), recency_at.label("recency_at"))
         .join(EventScore, EventScore.event_id == Event.id)
-        .where(Event.status == "analyzed", Event.last_seen_at >= cutoff)
+        .join(Article, Article.event_id == Event.id)
+        .where(Event.status == "analyzed")
         .group_by(Event.id)
-        .order_by(desc("max_alert"), desc(Event.last_seen_at))
+        .having(recency_at >= cutoff)
+        .order_by(desc(max_alert), desc(recency_at))
         .limit(limit)
     ).all()
     results = []
-    for event, _max_alert in rows:
+    for event, _max_alert, _recency_at in rows:
         article = session.scalar(
             select(Article)
             .where(Article.event_id == event.id)

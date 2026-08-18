@@ -2,7 +2,8 @@
 {% block title %}Radar · AI Radar{% endblock %}
 {% block content %}
 {% set page_title = "Radar" %}
-{% set page_subtitle = result.total ~ " event" ~ ("s" if result.total != 1 else "") ~ " detected" %}
+{% set date_labels = {"24h": "Last 24 hours", "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", "all": "All time", "custom": "Custom range"} %}
+{% set page_subtitle = result.total ~ " event" ~ ("s" if result.total != 1 else "") ~ " · " ~ date_labels.get(filters.date_bucket, "Custom range") %}
 {% include "partials/header.html" %}
 
 <form class="filter-bar" hx-get="/radar" hx-target="#event-list-region" hx-push-url="true"
@@ -23,12 +24,12 @@
     </option>
     {% endfor %}
   </select>
-  <select name="days">
-    <option value="">All time</option>
-    <option value="1" {% if filters.days == 1 %}selected{% endif %}>Last 24h</option>
-    <option value="3" {% if filters.days == 3 %}selected{% endif %}>Last 3 days</option>
-    <option value="7" {% if filters.days == 7 %}selected{% endif %}>Last 7 days</option>
-    <option value="30" {% if filters.days == 30 %}selected{% endif %}>Last 30 days</option>
+  <select name="date">
+    <option value="24h" {% if filters.date_bucket == '24h' %}selected{% endif %}>Last 24 hours</option>
+    <option value="7d" {% if filters.date_bucket == '7d' %}selected{% endif %}>Last 7 days</option>
+    <option value="30d" {% if filters.date_bucket == '30d' %}selected{% endif %}>Last 30 days</option>
+    <option value="90d" {% if filters.date_bucket == '90d' %}selected{% endif %}>Last 90 days</option>
+    <option value="all" {% if filters.date_bucket == 'all' %}selected{% endif %}>All time</option>
   </select>
   <select name="primary">
     <option value="">Any source type</option>

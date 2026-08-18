@@ -7,18 +7,36 @@ from sqlalchemy.orm import Session
 from app.web.context import sidebar_context
 from app.web.deps import get_session
 from app.web.queries import events as queries
+from app.web.recency import DATE_RANGE_DAYS, DEFAULT_DATE_BUCKET
 from app.web.templates import templates
 
 router = APIRouter()
 
 
+def _parse_date_filter(params) -> tuple[str, int | None]:
+    """Resolve the `?date=` bucket (default 30 days), honoring the legacy
+    `?days=N` param from V1 so existing links/bookmarks keep working."""
+    date_param = params.get("date")
+    days_param = params.get("days")
+    if date_param is not None:
+        bucket = date_param if date_param in DATE_RANGE_DAYS else DEFAULT_DATE_BUCKET
+        return bucket, DATE_RANGE_DAYS[bucket]
+    if days_param is not None:
+        days = int(days_param) if days_param else None
+        bucket = next((key for key, value in DATE_RANGE_DAYS.items() if value == days), "custom")
+        return bucket, days
+    return DEFAULT_DATE_BUCKET, DATE_RANGE_DAYS[DEFAULT_DATE_BUCKET]
+
+
 def _parse_filters(request: Request) -> queries.EventFilters:
     params = request.query_params
     source_id = params.get("source")
+    date_bucket, days = _parse_date_filter(params)
     return queries.EventFilters(
         profile=params.get("profile") or None,
         source_id=UUID(source_id) if source_id else None,
-        days=int(params["days"]) if params.get("days") else None,
+        days=days,
+        date_bucket=date_bucket,
         primary_only={"true": True, "false": False}.get(params.get("primary")),
         min_relevance=int(params["min_relevance"]) if params.get("min_relevance") else None,
         min_alert=int(params["min_alert"]) if params.get("min_alert") else None,

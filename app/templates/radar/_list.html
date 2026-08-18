@@ -14,6 +14,9 @@
         <span>Confidence {{ "%.2f"|format(item.event.confidence) }}</span>
         <span>Hype {{ "%.2f"|format(item.event.hype_probability) }}</span>
         <span>{% if item.event.primary_source_verified %}Primary source: verified{% else %}Primary source: not verified{% endif %}</span>
+        {% if filters.date_bucket in ('90d', 'all') and item.is_historical %}
+        <span class="badge historical">Historical</span>
+        {% endif %}
       </div>
     </div>
     <div class="event-badges">

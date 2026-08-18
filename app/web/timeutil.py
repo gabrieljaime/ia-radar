@@ -3,14 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+from app.web.tz import as_utc
+
 LOCAL_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
-
-
-def _as_utc(value: datetime) -> datetime:
-    # SQLite (used in tests) drops tzinfo on round-trip even for
-    # DateTime(timezone=True) columns; Postgres (production) does not, so a
-    # naive value here always represents UTC, never the host's local time.
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def to_local(value: datetime | None) -> str:
@@ -22,10 +17,32 @@ def to_local(value: datetime | None) -> str:
     """
     if value is None:
         return "—"
-    return _as_utc(value).astimezone(LOCAL_TZ).strftime("%d %b %Y · %H:%M")
+    return as_utc(value).astimezone(LOCAL_TZ).strftime("%d %b %Y · %H:%M")
 
 
 def to_local_short(value: datetime | None) -> str:
     if value is None:
         return "—"
-    return _as_utc(value).astimezone(LOCAL_TZ).strftime("%d %b, %H:%M")
+    return as_utc(value).astimezone(LOCAL_TZ).strftime("%d %b, %H:%M")
+
+
+def relative_time(value: datetime | None) -> str:
+    """Render "12 min ago" / "2h ago" / "3d ago" style relative timestamps.
+
+    Centralized here so no template duplicates the minute/hour/day thresholds.
+    """
+    if value is None:
+        return "—"
+    seconds = int((datetime.now(UTC) - as_utc(value)).total_seconds())
+    if seconds < 0:
+        seconds = 0
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} min ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    return f"{days}d ago"

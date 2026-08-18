@@ -1,0 +1,7 @@
+{% macro kpi_card(label, value, href=none, sub=none, tooltip=none, value_class='') %}
+{% if href %}<a class="card kpi-card" href="{{ href }}">{% else %}<div class="card kpi-card">{% endif %}
+  <div class="kpi-label">{{ label }}</div>
+  <div class="kpi-value {{ value_class }}"{% if tooltip %} title="{{ tooltip }}"{% endif %}>{{ value }}</div>
+  {% if sub %}<div class="kpi-sub">{{ sub }}</div>{% endif %}
+{% if href %}</a>{% else %}</div>{% endif %}
+{% endmacro %}

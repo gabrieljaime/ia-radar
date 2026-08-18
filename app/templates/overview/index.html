@@ -1,35 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Overview · AI Radar{% endblock %}
 {% block content %}
+{% from "partials/kpi_card.html" import kpi_card %}
 {% set page_title = "Overview" %}
 {% set page_subtitle = "Pipeline status, latest signal and source health at a glance." %}
 {% include "partials/header.html" %}
 
+{% set run_href = ("/runs/" ~ run.id) if run else none %}
 <div class="kpi-grid">
-  <div class="card kpi-card">
-    <div class="kpi-label">Latest Run</div>
-    <div class="kpi-value small">{{ run.started_at|local_time_short if run else "—" }}</div>
-  </div>
-  <div class="card kpi-card">
-    <div class="kpi-label">Articles Found</div>
-    <div class="kpi-value">{{ run.collected if run else "—" }}</div>
-  </div>
-  <div class="card kpi-card">
-    <div class="kpi-label">Events Analyzed</div>
-    <div class="kpi-value">{{ run.analyzed if run else "—" }}</div>
-  </div>
-  <div class="card kpi-card">
-    <div class="kpi-label">Alerts</div>
-    <div class="kpi-value">{{ run.alerts_sent if run else "—" }}</div>
-  </div>
-  <div class="card kpi-card">
-    <div class="kpi-label">LLM Calls</div>
-    <div class="kpi-value">{{ run.llm_calls if run else "—" }}</div>
-  </div>
-  <div class="card kpi-card">
-    <div class="kpi-label">Errors</div>
-    <div class="kpi-value">{{ run.error_summary|length if run else "—" }}</div>
-  </div>
+  {{ kpi_card("Latest Run", run.started_at|relative_time if run else "—", href=run_href,
+              sub=run.started_at|local_time_short if run else none,
+              tooltip=run.started_at|local_time if run else none, value_class="small") }}
+  {{ kpi_card("Articles Found", run.collected if run else "—", href=run_href) }}
+  {{ kpi_card("Events Analyzed", run.analyzed if run else "—", href=run_href) }}
+  {{ kpi_card("Alerts", run.alerts_sent if run else "—", href="/radar?min_alert=90&date=30d") }}
+  {{ kpi_card("LLM Calls", run.llm_calls if run else "—", href=run_href) }}
+  {{ kpi_card("Errors", run.error_summary|length if run else "—", href=run_href) }}
 </div>
 
 <div class="section">
@@ -48,7 +34,7 @@
 </div>
 
 <div class="section">
-  <div class="section-title">Latest High-Signal Events</div>
+  <div class="section-title">High Signal · Last 7 Days</div>
   {% if high_signal_events %}
   <div class="event-list">
     {% for item in high_signal_events %}
@@ -71,7 +57,7 @@
   {% else %}
   <div class="card empty-state">
     <div class="empty-icon">◌</div>
-    No events detected yet.
+    No high-signal events detected in the last 7 days.
   </div>
   {% endif %}
 </div>

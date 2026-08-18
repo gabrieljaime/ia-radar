@@ -1,17 +1,32 @@
 {% extends "base.html" %}
 {% block title %}{{ detail.event.title }} · AI Radar{% endblock %}
 {% block content %}
+{% set top_article = detail.articles[0] if detail.articles else none %}
+{% set top_alert = detail.scores[0].score.alert_score if detail.scores else none %}
 <a class="back-link" href="/radar">← Back to Radar</a>
 
 <div class="detail-header">
-  <h1>{{ detail.event.title }}</h1>
+  <div class="detail-top">
+    <div class="alert-score {% if top_alert is not none and top_alert >= 90 %}high{% elif top_alert is not none and top_alert >= 70 %}mid{% endif %}">
+      {{ top_alert if top_alert is not none else "—" }}
+    </div>
+    <div>
+      <h1>{{ detail.event.title }}</h1>
+      {% if detail.event.subject_name %}<p class="detail-subject">{{ detail.event.subject_name }}</p>{% endif %}
+    </div>
+  </div>
   <div class="detail-meta">
-    {% if detail.event.subject_name %}<span>{{ detail.event.subject_name }}</span>{% endif %}
-    <span>First seen {{ detail.event.first_seen_at|local_time }}</span>
-    <span>Last seen {{ detail.event.last_seen_at|local_time }}</span>
+    <span>{{ top_article.article.published_at|local_time if top_article and top_article.article.published_at else "—" }}</span>
+    <span>{{ top_article.source.name if top_article and top_article.source else "—" }}</span>
     <span>Confidence {{ "%.2f"|format(detail.event.confidence) }}</span>
     <span>Hype {{ "%.2f"|format(detail.event.hype_probability) }}</span>
-    <span>{% if detail.event.primary_source_verified %}Primary source: verified{% else %}Primary source: not verified{% endif %}</span>
+    <span class="badge {% if detail.event.primary_source_verified %}ok{% else %}warning{% endif %}">
+      {% if detail.event.primary_source_verified %}Primary source verified{% else %}Primary source not verified{% endif %}
+    </span>
+  </div>
+  <div class="detail-meta detail-meta-secondary">
+    <span>First seen {{ detail.event.first_seen_at|local_time }}</span>
+    <span>Last seen {{ detail.event.last_seen_at|local_time }}</span>
   </div>
   {% if detail.event.primary_source_url %}
   <p><a href="{{ detail.event.primary_source_url }}" target="_blank" rel="noopener">Primary source ↗</a></p>
@@ -19,12 +34,12 @@
 </div>
 
 <div class="section">
-  <div class="section-title">Qué Pasó</div>
+  <div class="section-title">What Happened</div>
   <div class="card prose">{{ detail.event.what_happened or "—" }}</div>
 </div>
 
 <div class="section">
-  <div class="section-title">Por Qué Importa</div>
+  <div class="section-title">Why It Matters</div>
   <div class="card prose">{{ detail.event.why_it_matters or "—" }}</div>
 </div>
 
@@ -57,7 +72,7 @@
 </div>
 
 <div class="section">
-  <div class="section-title">Sources</div>
+  <div class="section-title">Sources / Evidence</div>
   <div class="table-wrap">
     <table>
       <thead>

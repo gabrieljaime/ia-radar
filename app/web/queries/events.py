@@ -8,6 +8,7 @@ from sqlalchemy import desc, exists, func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Article, Event, EventScore, PipelineRun, Profile, Source
+from app.web.recency import DEFAULT_DATE_BUCKET, is_historical, resolve_recency_at
 
 DEFAULT_PAGE_SIZE = 25
 
@@ -27,6 +28,7 @@ class EventListItem:
     published_at: datetime | None
     max_alert: int
     badges: list[ProfileBadge]
+    is_historical: bool
 
 
 @dataclass(slots=True)
@@ -34,6 +36,7 @@ class EventFilters:
     profile: str | None = None
     source_id: UUID | None = None
     days: int | None = None
+    date_bucket: str = DEFAULT_DATE_BUCKET
     primary_only: bool | None = None
     min_relevance: int | None = None
     min_alert: int | None = None
@@ -144,12 +147,14 @@ def build_list_item(session: Session, event: Event) -> EventListItem:
         for profile, score in score_rows[:3]
     ]
     max_alert = max((score.alert_score for _, score in score_rows), default=0)
+    recency_at = resolve_recency_at(article.published_at if article else None, event.first_seen_at)
     return EventListItem(
         event=event,
         source_name=source.name if source else None,
         published_at=article.published_at if article else None,
         max_alert=max_alert,
         badges=badges,
+        is_historical=is_historical(recency_at),
     )
 
 

@@ -10,7 +10,7 @@
   <body>
     <div class="app-shell">
       {% include "partials/sidebar.html" %}
-      <main class="main">
+      <main class="main{% if active_nav in ['overview', 'sources', 'runs'] %} main-narrow{% endif %}">
         {% block content %}{% endblock %}
       </main>
     </div>
