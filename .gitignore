@@ -1,8 +1,34 @@
+# Local configuration and secrets
 .env
+.env.*
+!.env.example
+
+# Python environments and generated files
 .venv/
+venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
-*.egg-info/
 .coverage
+coverage.xml
+htmlcov/
+
+# Local databases, logs, and runtime output
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+
+# Local tooling and editor state
+.claude/
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# OS metadata
+.DS_Store
+Thumbs.db

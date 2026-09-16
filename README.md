@@ -1,6 +1,12 @@
 # AI Radar
 
-AI Radar es un radar personal de inteligencia tecnológica. Este vertical slice consulta fuentes RSS oficiales, normaliza y agrupa artículos en eventos, descarta ruido antes de pagar un análisis, evalúa cada evento contra tres perfiles en una sola llamada LLM, persiste el resultado y envía una única alerta crítica por Telegram.
+Radar configurable para descubrir cambios relevantes en inteligencia artificial y convertirlos en señales accionables. Consulta fuentes públicas, normaliza y agrupa artículos en eventos, descarta ruido antes de llamar al LLM, evalúa cada evento contra perfiles configurables, persiste el resultado y puede enviar una alerta consolidada por Telegram.
+
+El proyecto está preparado para ejecutarse localmente o en un servidor Linux. No contiene credenciales reales: las claves y tokens se leen exclusivamente desde variables de entorno.
+
+## Estado del proyecto
+
+Este repositorio contiene un vertical slice operativo. El dashboard FastAPI, los collectors, el pipeline de scoring, PostgreSQL y las alertas de Telegram están implementados. Tavily, feedback, research agents, embeddings y una API operacional de escritura quedan fuera del alcance actual.
 
 ## Alcance implementado
 
@@ -10,9 +16,7 @@ RSS → normalize → event deduplication → prefilter
     → PostgreSQL → one consolidated Telegram alert
 ```
 
-FastAPI expone el dashboard operativo, además de `GET /health` y `GET /ready`. Tavily,
-feedback, research agents, embeddings y una API operacional de escritura permanecen fuera de
-esta fase.
+FastAPI expone el dashboard operativo, además de `GET /health` y `GET /ready`.
 
 ## Requisitos
 
@@ -43,7 +47,14 @@ Complete en `.env`:
 - `TELEGRAM_CHAT_ID`: chat receptor. En ausencia de ambas variables Telegram queda desactivado, pero el pipeline puede procesar y persistir.
 - `DATABASE_URL`: la provista funciona con Compose; para Supabase use la URL PostgreSQL con el SSL requerido por la instancia.
 
-No hay claves reales en el repositorio y los valores vacíos no son claves de ejemplo.
+No introduzca valores reales en `.env.example`, workflows, fixtures o documentación. El archivo `.env` está ignorado por Git; antes de publicar el repositorio conviene comprobarlo con `git ls-files .env` y revisar también el historial de Git.
+
+## Seguridad y privacidad
+
+- No suba `.env`, tokens, claves LLM, credenciales de base de datos ni identificadores privados.
+- Si una credencial aparece alguna vez en un archivo rastreado o en un log compartido, revóquela y genere otra; eliminar el archivo no la elimina del historial.
+- Las credenciales de GitHub Actions deben configurarse como GitHub Secrets. Los valores de prueba de PostgreSQL del workflow son efímeros y sólo se usan dentro del runner.
+- Las fuentes configuradas son URLs públicas. Revise `config/sources.yaml` antes de añadir endpoints internos o feeds con acceso restringido.
 
 ## Ejecución
 
@@ -221,3 +232,11 @@ El deployment estable usa Docker Compose para `postgres` y `radar`, y timers sys
 Radar, digest y health de fuentes. GitHub Actions no programa ejecuciones de producción. Consulte
 [`docs/production-deployment.md`](docs/production-deployment.md) para instalación Ubuntu desde cero,
 validación sin Telegram, operación, backups, restore y rollback.
+
+## Copyright y licencia
+
+Copyright (c) 2026 AI Radar authors. All rights reserved.
+
+La publicación de este repositorio no concede por sí sola permiso para copiar, modificar,
+redistribuir o utilizar el código en productos. Si se desea una licencia open source, debe añadirse
+un archivo `LICENSE` con los términos elegidos y sustituirse esta sección por el aviso correspondiente.
