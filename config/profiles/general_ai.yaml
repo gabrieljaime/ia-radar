@@ -5,8 +5,11 @@ enabled: true
 description: >
   Novedades significativas del ecosistema global de inteligencia artificial: nuevas generaciones
   de modelos, capacidades importantes, APIs, open weights, infraestructura, investigación con
-  impacto práctico y cambios estratégicos. Debe ignorar ruido corporativo, marketing, ejecutivos,
-  oficinas y partnerships sin impacto técnico o estratégico extraordinario.
+  impacto práctico y cambios estratégicos. También son señal alta los incidentes de seguridad,
+  evaluaciones creíbles de riesgo catastrófico y compromisos o llamados coordinados de líderes de
+  laboratorios frontier que cambien el ritmo, la supervisión o la gobernanza del desarrollo de IA.
+  Debe ignorar ruido corporativo, marketing, ejecutivos, oficinas y partnerships sin impacto
+  técnico, de seguridad o estratégico extraordinario.
 topics:
   new_model: 1.0
   model_release: 1.0
@@ -27,6 +30,18 @@ topics:
   accelerator: 0.8
   benchmark: 0.75
   computer_use: 0.9
+  ai_safety: 1.0
+  alignment: 1.0
+  loss_of_control: 1.0
+  existential_risk: 0.95
+  catastrophic_risk: 0.95
+  pace_the_frontier: 1.0
+  slow_ai: 0.9
+  ai_slowdown: 0.9
+  recursive_self_improvement: 1.0
+  human_extinction: 0.95
+  third_party_evaluation: 0.9
+  ai_governance: 0.95
 entities:
   openai: 0.9
   anthropic: 0.9
@@ -41,6 +56,20 @@ entities:
   qwen: 0.9
   mistral: 0.9
   hugging_face: 0.8
+  dario_amodei: 0.4
+  sam_altman: 0.4
+  elon_musk: 0.4
+  demis_hassabis: 0.4
+  evan_hubinger: 0.4
+  jacob_coxon: 0.4
+  ilya_sutskever: 0.4
+  yoshua_bengio: 0.4
+  geoffrey_hinton: 0.4
+  yann_lecun: 0.4
+  mustafa_suleyman: 0.4
+  jan_leike: 0.4
+  andrej_karpathy: 0.4
+  lilian_weng: 0.4
 actions:
   suggest_research_use: true
   suggest_internal_use_case: true

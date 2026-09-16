@@ -9,7 +9,7 @@ from app.collectors.github_releases import GitHubReleasesCollector
 from app.collectors.huggingface_models import HuggingFaceModelsCollector
 from app.collectors.web_articles import WebArticlesCollector
 from app.collectors.web_changelog import WebChangelogCollector
-from app.core.config import get_settings, load_sources
+from app.core.config import SourcesConfig, get_settings, load_sources
 from app.db.models import Source, SourceHealth
 from app.db.session import create_session_factory
 from scripts.check_feeds import check_feed
@@ -117,14 +117,48 @@ async def main() -> int:
     print("SOURCE\tTYPE\tHTTP\tITEMS\tLATEST\tSTATUS")
     for row in rows:
         print("{source}\t{type}\t{http}\t{items}\t{latest}\t{status}".format(**row))
-    persist_health(settings, rows)
+    persist_health(settings, sources, rows)
     return 0 if all(row["status"] in {"OK", "STALE"} for row in rows) else 1
 
 
-def persist_health(settings, rows: list[dict[str, object]]) -> None:
+def persist_health(settings, sources: SourcesConfig, rows: list[dict[str, object]]) -> None:
     """Store the latest health snapshot per source so the dashboard can read it without
     issuing live HTTP requests on page load."""
     with create_session_factory(settings.database_url)() as session:
+        for source_type in (
+            "rss",
+            "web_changelog",
+            "web_articles",
+            "github_releases",
+            "huggingface_models",
+        ):
+            for configured in getattr(sources, source_type):
+                base_url = str(configured.url)
+                source = session.scalar(
+                    select(Source).where(
+                        Source.source_type == source_type,
+                        Source.base_url == base_url,
+                    )
+                )
+                if source is None:
+                    source = Source(
+                        name=configured.name,
+                        source_type=source_type,
+                        base_url=base_url,
+                        trust_level=configured.trust_level,
+                        is_primary=configured.is_primary,
+                        requires_primary_verification=(configured.requires_primary_verification),
+                        enabled=configured.enabled,
+                    )
+                    session.add(source)
+                else:
+                    source.name = configured.name
+                    source.trust_level = configured.trust_level
+                    source.is_primary = configured.is_primary
+                    source.requires_primary_verification = configured.requires_primary_verification
+                    source.enabled = configured.enabled
+        session.flush()
+
         for row in rows:
             source = session.scalar(
                 select(Source).where(

@@ -10,7 +10,9 @@ RSS → normalize → event deduplication → prefilter
     → PostgreSQL → one consolidated Telegram alert
 ```
 
-FastAPI expone solamente `GET /health` y `GET /ready`. Tavily, GitHub, arXiv, digest, feedback, research agents, embeddings, dashboard y la API operacional están deliberadamente fuera de esta fase.
+FastAPI expone el dashboard operativo, además de `GET /health` y `GET /ready`. Tavily,
+feedback, research agents, embeddings y una API operacional de escritura permanecen fuera de
+esta fase.
 
 ## Requisitos
 
@@ -133,6 +135,14 @@ curl http://localhost:8000/ready
 - `rss` consume feeds estructurados; `web_changelog` extrae releases o cambios técnicos de una
   página oficial; `web_articles` extrae solamente las tarjetas visibles de un índice editorial.
   Siempre se prefiere un RSS/Atom oficial y estable al parser HTML.
+- La selección actual cubre laboratorios y changelogs oficiales, investigación de seguridad y
+  alineamiento en arXiv, el International AI Safety Report y análisis secundarios de WIRED y
+  Normal Technology. También incorpora investigación institucional de Google y Amazon, estándares
+  de NIST, adopción educativa, infraestructura y economía de IA, ciencia y mercado. Los libros y
+  artículos individuales usados como bibliografía no se tratan como feeds: sus publicaciones
+  originales quedan cubiertas por los canales vivos correspondientes.
+- Cada feed RSS procesa como máximo sus 100 entradas más recientes por corrida (configurable con
+  `limit`) para evitar reingestar historiales completos de feeds muy grandes.
 - Las fuentes `web_changelog` usan parsers HTML pequeños y específicos; cada entrada se convierte
   en un `Candidate` independiente y la URL canónica existente conserva la idempotencia entre corridas.
 - Para agregar una fuente RSS se agrega una entrada bajo `rss`. Para un changelog se agrega bajo

@@ -8,6 +8,12 @@ _BROAD_AI_SIGNALS = {
     "ai",
     "artificial intelligence",
     "agent",
+    "ai alignment",
+    "ai safety",
+    "ai slowdown",
+    "catastrophic risk",
+    "existential risk",
+    "extinction risk",
     "foundation model",
     "generative",
     "llm",
@@ -27,6 +33,10 @@ _BROAD_AI_SIGNALS = {
     "context window",
     "embedding",
     "inference",
+    "loss of control",
+    "pace the frontier",
+    "recursive self-improvement",
+    "slow ai",
     "deprecation",
     "general availability",
     "preview",
@@ -40,14 +50,18 @@ _WEB_ARTICLE_SIGNALS = {
     "ai chip",
     "ai regulation",
     "ai safety",
+    "ai slowdown",
+    "alignment",
     "benchmark",
     "coding agent",
     "computer use",
+    "existential risk",
     "context window",
     "embedding",
     "gpu",
     "inference",
     "large language model",
+    "loss of control",
     "llm",
     "mcp",
     "model release",
@@ -56,11 +70,14 @@ _WEB_ARTICLE_SIGNALS = {
     "npu",
     "open weight",
     "post-training",
+    "pace the frontier",
     "rag",
     "reasoning model",
     "reinforcement learning",
+    "recursive self-improvement",
     "rerank",
     "tool calling",
+    "human extinction",
 }
 
 _INFRASTRUCTURE_MAJOR_SIGNALS = {
@@ -74,6 +91,58 @@ _INFRASTRUCTURE_MAJOR_SIGNALS = {
     "performance improvement",
     "performance milestone",
 }
+
+_STRATEGIC_SAFETY_SIGNALS = {
+    "ai safety",
+    "ai slowdown",
+    "alignment",
+    "catastrophic risk",
+    "could kill",
+    "end humanity",
+    "existential risk",
+    "extinction risk",
+    "halt ai",
+    "human extinction",
+    "kill us all",
+    "loss of control",
+    "moratorium",
+    "pace the frontier",
+    "pause ai",
+    "recursive self-improvement",
+    "slow ai",
+    "slowdown",
+    "third-party evaluator",
+    "wipe out humanity",
+}
+
+_AI_AUTHORITY_SIGNALS = {
+    "dario amodei",
+    "sam altman",
+    "elon musk",
+    "demis hassabis",
+    "evan hubinger",
+    "jacob coxon",
+    "ilya sutskever",
+    "yoshua bengio",
+    "geoffrey hinton",
+    "yann lecun",
+    "mustafa suleyman",
+    "jan leike",
+    "anthropic ceo",
+    "anthropic researcher",
+    "ex-anthropic researcher",
+    "ai leaders",
+    "openai ceo",
+    "frontier lab",
+}
+
+
+def is_strategic_safety_signal(candidate: Candidate) -> bool:
+    """Identify consequential public safety positions without matching generic AI commentary."""
+    text = f"{candidate.title} {candidate.summary}".casefold().replace("_", " ")
+    return any(signal in text for signal in _STRATEGIC_SAFETY_SIGNALS) and any(
+        authority in text for authority in _AI_AUTHORITY_SIGNALS
+    )
 
 
 def is_outside_lookback(candidate: Candidate, lookback_hours: int) -> bool:

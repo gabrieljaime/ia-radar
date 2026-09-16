@@ -12,7 +12,12 @@ from app.domain.models import DiscardReason, PipelineResult
 from app.llm.base import LLMProvider
 from app.llm.provider import LLMRequestError, StructuredOutputError
 from app.pipeline.normalize import normalize_candidate
-from app.pipeline.prefilter import is_outside_lookback, is_primary_bypass, prefilter
+from app.pipeline.prefilter import (
+    is_outside_lookback,
+    is_primary_bypass,
+    is_strategic_safety_signal,
+    prefilter,
+)
 from app.pipeline.score import calculate_scores
 from app.profiles.models import ProfileConfig
 
@@ -111,6 +116,7 @@ class RadarService:
         lookback_hours: int = 48,
         prefilter_min_score: int = 20,
         alert_score_threshold: int = 90,
+        strategic_safety_alert_score_threshold: int = 80,
         alert_confidence_threshold: float = 0.75,
         max_llm_calls_per_run: int = 50,
     ):
@@ -125,6 +131,7 @@ class RadarService:
         self.lookback_hours = lookback_hours
         self.prefilter_min_score = prefilter_min_score
         self.alert_score_threshold = alert_score_threshold
+        self.strategic_safety_alert_score_threshold = strategic_safety_alert_score_threshold
         self.alert_confidence_threshold = alert_confidence_threshold
         self.max_llm_calls_per_run = max_llm_calls_per_run
 
@@ -324,7 +331,13 @@ class RadarService:
         )
         result.analyzed += 1
 
-        if analysis.hype_probability >= 0.9 and max(scores.values()) < self.alert_score_threshold:
+        alert_threshold = (
+            min(self.alert_score_threshold, self.strategic_safety_alert_score_threshold)
+            if is_strategic_safety_signal(candidate)
+            else self.alert_score_threshold
+        )
+
+        if analysis.hype_probability >= 0.9 and max(scores.values()) < alert_threshold:
             self.repository.mark_discard(
                 stored.candidate_record_id,
                 stored.article_id,
@@ -333,7 +346,7 @@ class RadarService:
             )
             result.record_discard(DiscardReason.HIGH_HYPE)
         if (
-            max(scores.values()) >= self.alert_score_threshold
+            max(scores.values()) >= alert_threshold
             and analysis.confidence >= self.alert_confidence_threshold
             and self.alert_channel is not None
         ):

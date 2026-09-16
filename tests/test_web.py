@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -102,7 +103,7 @@ def seeded(db_session_factory):
         session.add(run)
         session.flush()
 
-        published_at = datetime(2026, 8, 18, 11, 3, tzinfo=UTC)
+        published_at = datetime.now(UTC) - timedelta(days=1)
         event = Event(
             analyzed_run_id=run.id,
             event_hash="hash-1",
@@ -154,7 +155,12 @@ def seeded(db_session_factory):
         session.add(score)
         session.commit()
 
-        return {"event_id": event.id, "run_id": run.id, "source_id": source.id}
+        return {
+            "event_id": event.id,
+            "run_id": run.id,
+            "source_id": source.id,
+            "published_at": published_at,
+        }
 
 
 def _make_source_and_profile(session):
@@ -355,7 +361,12 @@ def test_run_detail_not_found(client):
 def test_timezone_conversion(client, seeded):
     response = client.get(f"/radar/{seeded['event_id']}")
     assert response.status_code == 200
-    assert "08:03" in response.text
+    assert (
+        seeded["published_at"]
+        .astimezone(ZoneInfo("America/Argentina/Buenos_Aires"))
+        .strftime("%H:%M")
+        in response.text
+    )
 
 
 def test_404_page(client):

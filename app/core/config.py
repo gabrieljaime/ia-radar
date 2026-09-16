@@ -16,6 +16,8 @@ class RSSSourceConfig(BaseModel):
     is_primary: bool = True
     enabled: bool = True
     requires_primary_verification: bool = False
+    limit: int = Field(default=100, ge=1, le=500)
+    publisher_allowlist: list[str] = Field(default_factory=list)
 
 
 class WebChangelogSourceConfig(RSSSourceConfig):
@@ -69,6 +71,7 @@ class Settings(BaseSettings):
     prefilter_min_score: int = 20
     dedupe_title_threshold: float = 88.0
     alert_score_threshold: int = 90
+    strategic_safety_alert_score_threshold: int = Field(default=80, ge=0, le=100)
     alert_confidence_threshold: float = 0.75
 
 

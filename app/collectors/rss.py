@@ -35,7 +35,15 @@ class RSSCollector:
             parsed = feedparser.parse(response.content)
             if parsed.bozo and not parsed.entries:
                 raise ValueError("invalid RSS/Atom response")
-            return [self._entry_to_candidate(source, entry) for entry in parsed.entries]
+            entries = parsed.entries
+            if source.publisher_allowlist:
+                allowed = {publisher.casefold() for publisher in source.publisher_allowlist}
+                entries = [
+                    entry
+                    for entry in entries
+                    if str(getattr(entry, "source", {}).get("title", "")).casefold() in allowed
+                ]
+            return [self._entry_to_candidate(source, entry) for entry in entries[: source.limit]]
         except (httpx.HTTPError, ValueError) as error:
             self.errors.append(f"{source.name}: {type(error).__name__}")
             return []
@@ -48,12 +56,15 @@ class RSSCollector:
         published_at = (
             datetime.fromtimestamp(calendar.timegm(published), tz=UTC) if published else None
         )
+        title = str(getattr(entry, "title", "")).strip()
+        if not title or title == "-":
+            title = f"New post from {source.name}"
         return Candidate(
             source_name=source.name,
             source_url=str(source.url),
             source_trust=source.trust_level,
             source_is_primary=source.is_primary,
-            title=str(getattr(entry, "title", "")).strip(),
+            title=title,
             url=str(getattr(entry, "link", "")).strip(),
             summary=str(getattr(entry, "summary", "")).strip(),
             published_at=published_at,

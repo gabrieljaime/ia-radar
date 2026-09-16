@@ -9,11 +9,107 @@ rss:
     category: official
     trust_level: 95
     is_primary: true
+  - name: Google Research Blog
+    url: https://research.google/blog/rss/
+    category: official_research
+    trust_level: 100
+    is_primary: true
   - name: Google DeepMind
     url: https://deepmind.google/blog/rss.xml
     category: official
     trust_level: 100
     is_primary: true
+  - name: WIRED AI
+    url: https://www.wired.com/feed/tag/ai/latest/rss
+    category: expert_media
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: Ars Technica
+    url: https://feeds.arstechnica.com/arstechnica/index
+    category: expert_media
+    trust_level: 85
+    is_primary: false
+    requires_primary_verification: true
+  - name: TechCrunch AI
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    category: market_media
+    trust_level: 78
+    is_primary: false
+    requires_primary_verification: true
+  - name: Quanta Magazine
+    url: https://www.quantamagazine.org/feed/
+    category: science_media
+    trust_level: 92
+    is_primary: false
+    requires_primary_verification: true
+  - name: Normal Technology
+    url: https://www.normaltech.ai/feed
+    category: expert_blog
+    trust_level: 88
+    is_primary: false
+    requires_primary_verification: true
+  - name: arXiv AI Safety and Alignment
+    url: 'https://export.arxiv.org/api/query?search_query=%28cat%3Acs.AI+OR+cat%3Acs.LG%29+AND+%28all%3A%22AI+safety%22+OR+all%3A%22AI+alignment%22+OR+all%3A%22reward+hacking%22+OR+all%3A%22deceptive+alignment%22%29&start=0&max_results=50&sortBy=submittedDate&sortOrder=descending'
+    category: research_preprints
+    trust_level: 82
+    is_primary: true
+  - name: AI Safety Leaders Watch
+    url: 'https://news.google.com/rss/search?q=%28Dario+Amodei+OR+Sam+Altman+OR+Elon+Musk+OR+Demis+Hassabis+OR+Evan+Hubinger+OR+Jacob+Coxon+OR+Ilya+Sutskever+OR+Yoshua+Bengio+OR+Geoffrey+Hinton+OR+Yann+LeCun+OR+Mustafa+Suleyman+OR+Jan+Leike%29+%28AI+safety+OR+AI+risk+OR+alignment+OR+%22pace+the+frontier%22+OR+slowdown+OR+%22pause+AI%22+OR+%22halt+AI%22+OR+moratorium+OR+%22extinction+risk%22+OR+%22human+extinction%22+OR+%22kill+us+all%22%29&hl=en-US&gl=US&ceid=US%3Aen'
+    category: targeted_media_monitor
+    trust_level: 75
+    is_primary: false
+    requires_primary_verification: true
+    limit: 50
+    publisher_allowlist:
+      - Associated Press
+      - Axios
+      - BBC
+      - Business Insider
+      - cnbc.com
+      - Council on Foreign Relations
+      - Financial Times
+      - Fortune
+      - Los Angeles Times
+      - qz.com
+      - Reuters
+      - TechCrunch
+      - The Atlantic
+      - The Conversation
+      - The Guardian
+      - Time Magazine
+      - WIRED
+      - Wall Street Journal
+  - name: Sam Altman Blog
+    url: https://blog.samaltman.com/posts.atom
+    category: primary_executive_essays
+    trust_level: 100
+    is_primary: true
+    limit: 30
+  - name: Demis Hassabis Essays
+    url: https://demishassabis.substack.com/feed
+    category: primary_executive_essays
+    trust_level: 100
+    is_primary: true
+    limit: 30
+  - name: Jan Leike Alignment Blog
+    url: https://aligned.substack.com/feed
+    category: primary_alignment_researcher
+    trust_level: 98
+    is_primary: true
+    limit: 30
+  - name: Andrej Karpathy Blog
+    url: https://karpathy.bearblog.dev/feed/
+    category: primary_expert_blog
+    trust_level: 96
+    is_primary: true
+    limit: 30
+  - name: Lilian Weng Blog
+    url: https://lilianweng.github.io/index.xml
+    category: primary_expert_blog
+    trust_level: 96
+    is_primary: true
+    limit: 30
   - name: Hugging Face Blog
     url: https://huggingface.co/blog/feed.xml
     category: official
@@ -28,6 +124,11 @@ rss:
     url: https://aws.amazon.com/blogs/machine-learning/feed/
     category: official
     trust_level: 90
+    is_primary: true
+  - name: Amazon Science
+    url: https://www.amazon.science/index.rss
+    category: official_research
+    trust_level: 95
     is_primary: true
   - name: NVIDIA Blog
     url: https://blogs.nvidia.com/feed/
@@ -54,12 +155,23 @@ rss:
     category: expert_media
     trust_level: 80
     is_primary: false
-  - name: Anthropic News Mirror
-    url: https://rsshub.bestblogs.dev/anthropic/news
-    category: community_mirror
-    trust_level: 65
+  - name: One Useful Thing by Ethan Mollick
+    url: https://www.oneusefulthing.org/feed
+    category: education_and_work
+    trust_level: 88
     is_primary: false
     requires_primary_verification: true
+  - name: SemiAnalysis
+    url: https://newsletter.semianalysis.com/feed
+    category: infrastructure_analysis
+    trust_level: 88
+    is_primary: false
+    requires_primary_verification: true
+  - name: Partnership on AI
+    url: https://partnershiponai.org/feed/
+    category: responsible_ai
+    trust_level: 92
+    is_primary: true
   - name: MIT Technology Review
     url: https://www.technologyreview.com/feed/
     category: expert_media
@@ -128,6 +240,12 @@ web_changelog:
     category: official
     trust_level: 100
     is_primary: true
+  - name: Anthropic Research
+    url: https://www.anthropic.com/research
+    parser: anthropic
+    category: official_research
+    trust_level: 100
+    is_primary: true
   - name: OpenAI API Changelog
     url: https://developers.openai.com/api/docs/changelog
     parser: openai_api
@@ -151,6 +269,41 @@ web_changelog:
     requires_primary_verification: false
 
 web_articles:
+  - name: Dario Amodei Essays
+    url: https://darioamodei.com/sitemap.xml
+    parser: dario_amodei_sitemap
+    category: primary_executive_essays
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
+  - name: Yoshua Bengio Blog
+    url: https://yoshuabengio.org/en/blog
+    parser: yoshua_bengio_blog
+    category: primary_researcher_essays
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
+  - name: Mustafa Suleyman Essays
+    url: https://mustafa-suleyman.ai/sitemap.xml
+    parser: mustafa_suleyman_sitemap
+    category: primary_executive_essays
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
+  - name: International AI Safety Report
+    url: https://internationalaisafetyreport.org/publications
+    parser: international_ai_safety_report
+    category: official_report
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
+  - name: NIST AI News and Updates
+    url: https://www.nist.gov/news-events/news-updates/topic/2753736
+    parser: nist_ai_news
+    category: official_standards
+    trust_level: 100
+    is_primary: true
+    requires_primary_verification: false
   - name: The Batch by DeepLearning.AI
     url: https://www.deeplearning.ai/the-batch/
     parser: the_batch

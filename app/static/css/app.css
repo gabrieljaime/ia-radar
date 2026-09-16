@@ -516,6 +516,25 @@ tbody tr:hover {
   min-width: 640px;
 }
 
+.source-link {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.source-link:hover,
+.source-link:focus-visible {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.table-note {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
 /* Empty state */
 
 .empty-state {

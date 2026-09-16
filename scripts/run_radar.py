@@ -85,6 +85,9 @@ async def main(dry_run: bool = False) -> int:
                     lookback_hours=settings.radar_lookback_hours,
                     prefilter_min_score=settings.prefilter_min_score,
                     alert_score_threshold=settings.alert_score_threshold,
+                    strategic_safety_alert_score_threshold=(
+                        settings.strategic_safety_alert_score_threshold
+                    ),
                     alert_confidence_threshold=settings.alert_confidence_threshold,
                     max_llm_calls_per_run=settings.radar_max_llm_calls_per_run,
                 )

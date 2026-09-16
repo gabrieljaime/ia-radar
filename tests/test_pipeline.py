@@ -124,6 +124,37 @@ async def test_pipeline_is_idempotent_and_sends_one_alert(repository, session, p
     assert [record.discard_reason for record in records] == [None, "already_seen"]
 
 
+async def test_strategic_safety_signal_uses_dedicated_alert_threshold(
+    repository, profiles, analysis
+):
+    safety_candidate = candidate(
+        title="Dario Amodei calls for an AI slowdown",
+        url="https://darioamodei.com/post/we-must-pace-the-frontier",
+        source_name="Dario Amodei Essays",
+    )
+    safety_candidate.summary = (
+        "Dario Amodei proposes third-party evaluators to improve AI safety and alignment."
+    )
+    moderate_profiles = [
+        evaluation.model_copy(update={"alert_score": 82}) for evaluation in analysis.profiles
+    ]
+    moderate_analysis = analysis.model_copy(
+        update={"confidence": 0.95, "hype_probability": 0.05, "profiles": moderate_profiles}
+    )
+    channel = RecordingChannel()
+    result = await RadarService(
+        StaticCollector([safety_candidate]),
+        StaticLLM(moderate_analysis),
+        repository,
+        profiles,
+        channel,
+        alert_score_threshold=90,
+        strategic_safety_alert_score_threshold=80,
+    ).run()
+    assert result.alerts_sent == 1
+    assert len(channel.messages) == 1
+
+
 async def test_similar_articles_become_one_event(repository, session, profiles, analysis):
     first = candidate()
     second = candidate("Model X adds tool-calling for AI agents", "https://other.example/model-x")

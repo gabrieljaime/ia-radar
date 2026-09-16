@@ -17,13 +17,18 @@
     <tbody>
       {% for row in rows %}
       <tr>
-        <td>{{ row.source.name }}</td>
+        <td><a class="source-link" href="{{ row.source.base_url }}" target="_blank" rel="noopener noreferrer">{{ row.source.name }} <span aria-hidden="true">↗</span></a></td>
         <td>{{ row.source.source_type }}</td>
         <td>{{ "Primary" if row.source.is_primary else "Secondary" }}</td>
         <td>{{ "Required" if row.source.requires_primary_verification else "—" }}</td>
         <td>{{ row.last_fetch_at|local_time_short if row.last_fetch_at else "—" }}</td>
         <td>{{ row.latest_published_at|local_time_short if row.latest_published_at else "—" }}</td>
-        <td><span class="badge {{ row.status_label }}">{{ row.status_label }}</span></td>
+        <td>
+          <span class="badge {{ row.status_label }}">{{ row.status_label }}</span>
+          {% if row.health and row.health.checked_at %}
+          <div class="table-note" title="{{ row.health.checked_at|local_time }}">checked {{ row.health.checked_at|relative_time }}</div>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
