@@ -12,6 +12,11 @@
       {% include "partials/sidebar.html" %}
       <main class="main{% if active_nav in ['overview', 'sources', 'runs'] %} main-narrow{% endif %}">
         {% block content %}{% endblock %}
+        <footer class="site-footer">
+          © 2026 <a href="https://github.com/gabrieljaime" target="_blank" rel="noopener">gabrieljaime</a>
+          · <a href="https://github.com/gabrieljaime/ia-radar" target="_blank" rel="noopener">AI Radar</a>
+          · MIT License
+        </footer>
       </main>
     </div>
   </body>

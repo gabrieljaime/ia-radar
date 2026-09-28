@@ -1,137 +1,300 @@
 # AI Radar
 
-Radar configurable para descubrir cambios relevantes en inteligencia artificial y convertirlos en señales accionables. Consulta fuentes públicas, normaliza y agrupa artículos en eventos, descarta ruido antes de llamar al LLM, evalúa cada evento contra perfiles configurables, persiste el resultado y puede enviar una alerta consolidada por Telegram.
+**English** | [Español](README.es.md)
 
-El proyecto está preparado para ejecutarse localmente o en un servidor Linux. No contiene credenciales reales: las claves y tokens se leen exclusivamente desde variables de entorno.
+A configurable radar that discovers relevant changes in artificial intelligence and turns them into actionable signals. It pulls from public sources, normalizes articles and groups them into events, discards noise before calling the LLM, evaluates each event against configurable profiles, stores the results, and can send a consolidated alert via Telegram.
 
-## Estado del proyecto
+The project is ready to run locally or on a Linux server. It contains no real credentials: keys and tokens are read exclusively from environment variables.
 
-Este repositorio contiene un vertical slice operativo. El dashboard FastAPI, los collectors, el pipeline de scoring, PostgreSQL y las alertas de Telegram están implementados. Tavily, feedback, research agents, embeddings y una API operacional de escritura quedan fuera del alcance actual.
+<p align="center">
+  <img src="docs/images/ai-radar-infographic.svg" alt="AI Radar infographic: 55 public sources are collected, normalized, deduplicated and prefiltered before an LLM analyzes each event; results are scored per profile and delivered as Telegram alerts, a daily digest and a web dashboard." width="100%">
+  <br><sub>Architecture overview (infographic in Spanish).</sub>
+</p>
 
-## Alcance implementado
+## Project status
+
+This repository contains a working vertical slice. The FastAPI dashboard, collectors, scoring pipeline, PostgreSQL storage, and Telegram alerts are implemented. Tavily, feedback, research agents, embeddings, and a write-capable operational API are out of the current scope.
+
+## What it does
 
 ```text
-RSS → normalize → event deduplication → prefilter
-    → one structured LLM analysis (3 profiles) → deterministic scoring
+sources → normalize → event deduplication → prefilter
+    → one structured LLM analysis (all active profiles) → deterministic scoring
     → PostgreSQL → one consolidated Telegram alert
 ```
 
-FastAPI expone el dashboard operativo, además de `GET /health` y `GET /ready`.
+FastAPI serves the operator dashboard, plus `GET /health` and `GET /ready`.
 
-## Requisitos
+## Requirements
 
-- Python 3.12
-- Docker con Compose
-- Una API LLM compatible con Chat Completions y `response_format: json_schema`
-- Opcional para ejecutar alertas: bot y chat de Telegram
+| What | Used for | Required |
+| --- | --- | --- |
+| [Git](https://git-scm.com/downloads) | Downloading the repository | Yes |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) or Docker Engine + Compose plugin (Linux) | PostgreSQL and, optionally, the whole app | Yes |
+| [Python 3.12](https://www.python.org/downloads/) | Only for option B (running the app outside Docker) | No |
+| An API key for an LLM provider compatible with OpenAI Chat Completions and `response_format: json_schema` (e.g. OpenAI) | Analyzing and scoring events | For real runs |
+| A Telegram bot and a chat ID | Receiving alerts and digests | No |
 
-## Configuración local
+Without an API key the radar still collects and prefilters news; without Telegram it processes and stores everything but sends no messages.
+
+## Step-by-step installation
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/gabrieljaime/ia-radar.git
+cd ia-radar
+```
+
+### 2. Create the `.env` file
+
+Linux / macOS:
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
-python -m venv .venv
-. .venv/bin/activate
-pip install -e '.[dev]'
-alembic upgrade head
 ```
 
-Complete en `.env`:
+Windows (PowerShell):
 
-- `LLM_API_KEY`: obligatoria para una corrida real.
-- `LLM_MODEL`: nombre de un modelo que soporte structured outputs.
-- `LLM_BASE_URL`: base URL del proveedor compatible.
-- `OUTPUT_LANGUAGE`: idioma del contenido generado (`es` por defecto); nombres técnicos, APIs,
-  frameworks y nombres propios se conservan en su idioma original.
-- `TELEGRAM_BOT_TOKEN`: necesaria para enviar alertas; se obtiene creando un bot con BotFather.
-- `TELEGRAM_CHAT_ID`: chat receptor. En ausencia de ambas variables Telegram queda desactivado, pero el pipeline puede procesar y persistir.
-- `DATABASE_URL`: la provista funciona con Compose; para Supabase use la URL PostgreSQL con el SSL requerido por la instancia.
+```powershell
+Copy-Item .env.example .env
+```
 
-No introduzca valores reales en `.env.example`, workflows, fixtures o documentación. El archivo `.env` está ignorado por Git; antes de publicar el repositorio conviene comprobarlo con `git ls-files .env` y revisar también el historial de Git.
+### 3. Fill in `.env`
 
-## Seguridad y privacidad
+Open `.env` in any editor and set:
 
-- No suba `.env`, tokens, claves LLM, credenciales de base de datos ni identificadores privados.
-- Si una credencial aparece alguna vez en un archivo rastreado o en un log compartido, revóquela y genere otra; eliminar el archivo no la elimina del historial.
-- Las credenciales de GitHub Actions deben configurarse como GitHub Secrets. Los valores de prueba de PostgreSQL del workflow son efímeros y sólo se usan dentro del runner.
-- Las fuentes configuradas son URLs públicas. Revise `config/sources.yaml` antes de añadir endpoints internos o feeds con acceso restringido.
+1. **Database password.** Replace `replace-with-a-long-random-password` with a long random
+   password. It appears **twice** (in `POSTGRES_PASSWORD` and inside `DATABASE_URL`) and both must
+   be identical. Use only letters and digits so nothing needs escaping in the URL. To generate one:
+   - Linux / macOS: `openssl rand -hex 32`
+   - Windows (PowerShell): `-join ((48..57)+(97..102) | Get-Random -Count 32 | % {[char]$_})`
+2. **LLM** (needed to analyze events):
+   - `LLM_API_KEY`: your provider key.
+   - `LLM_MODEL`: a model that supports structured outputs (default `gpt-4.1-nano`).
+   - `LLM_BASE_URL`: the provider's base URL (defaults to OpenAI).
+   - `LLM_INPUT_COST_PER_MILLION_USD` / `LLM_OUTPUT_COST_PER_MILLION_USD`: optional, only used to
+     estimate costs in the dashboard.
+3. **Telegram** (optional):
+   - `TELEGRAM_BOT_TOKEN`: talk to [@BotFather](https://t.me/BotFather), send `/newbot`, and copy
+     the token it returns.
+   - `TELEGRAM_CHAT_ID`: send any message to your bot, then open
+     `https://api.telegram.org/bot<TOKEN>/getUpdates`; the number in `"chat":{"id": ...}` is the
+     chat ID.
+   - If both are left empty, Telegram is disabled.
+4. `OUTPUT_LANGUAGE`: language of the generated content (`es` by default; set `en` for English).
+   Technical names, APIs, frameworks, and proper nouns are kept in their original language.
 
-## Ejecución
+All other variables have sensible defaults. `.env` is listed in `.gitignore`: never commit it.
+
+Then choose **one** of the two options below.
+
+### 4A. Option A: everything in Docker (recommended)
+
+No Python installation needed. With Docker Desktop running:
 
 ```bash
-python scripts/run_radar.py
+docker compose build
+docker compose up -d postgres
+docker compose run --rm radar python -m alembic upgrade head
+docker compose up -d radar
 ```
 
-Para una corrida real sin entregar mensajes a Telegram:
+Open <http://localhost:8000> to see the dashboard. To check that it responds:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/ready
+```
+
+First test run (analyzes with the LLM, stores results, and does **not** send Telegram messages):
+
+```bash
+docker compose run --rm radar python scripts/run_radar.py --dry-run
+```
+
+Any other script from the [Usage](#usage) section runs the same way, prefixed with
+`docker compose run --rm radar`. For example:
+
+```bash
+docker compose run --rm radar python scripts/run_radar.py
+docker compose run --rm radar python scripts/send_digest.py --dry-run
+```
+
+To stop everything: `docker compose down` (data is kept in the `ai_radar_postgres` volume;
+`docker compose down -v` deletes it).
+
+After updating the code (`git pull`), rebuild and apply migrations:
+
+```bash
+docker compose build
+docker compose run --rm radar python -m alembic upgrade head
+docker compose up -d radar
+```
+
+### 4B. Option B: local Python + PostgreSQL in Docker (development)
+
+PostgreSQL runs in Docker and is exposed only on `127.0.0.1:5432` through
+`docker-compose.dev.yml`; the app runs in a Python virtual environment.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
+```
+
+Create the virtual environment and install dependencies:
+
+Linux / macOS:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+Windows (PowerShell):
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
+> If PowerShell blocks activation, run once:
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+Create the tables and start the dashboard:
+
+```bash
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+Open <http://localhost:8000>. In another terminal (with the virtual environment activated), do a
+first test run:
 
 ```bash
 python scripts/run_radar.py --dry-run
 ```
 
-El dry-run persiste normalmente y, si hay credenciales LLM, imprime cada alerta elegible entre
-`WOULD_ALERT` y `END_WOULD_ALERT`. Sin credenciales procesa hasta el prefilter y deja los eventos
-en estado `pending` para que una corrida posterior pueda analizarlos.
+### 5. Schedule runs (optional)
 
-Para validar feeds sin LLM ni Telegram:
+The radar does not schedule itself: each execution of `scripts/run_radar.py` performs one pass.
+For a Linux server there are ready-made systemd timers in `deploy/systemd/` and a full guide in
+[`docs/production-deployment.md`](docs/production-deployment.md). Elsewhere you can use cron or
+Windows Task Scheduler to run the command for your chosen option.
+
+### Troubleshooting
+
+- **`set POSTGRES_PASSWORD in .env`**: `.env` is missing or the variable is empty; see step 3.
+- **`password authentication failed`**: the two passwords in `.env` don't match, or the password
+  was changed after the database was created. On a fresh install you can start over with
+  `docker compose down -v` (deletes the data).
+- **`connection refused` in option B**: PostgreSQL is not running, or it was started without
+  `-f docker-compose.dev.yml`, so port 5432 is not exposed.
+- **`ports are not available ... 5432`, or `password authentication failed` in option B even though
+  the passwords match**: another PostgreSQL is already using port 5432 on your machine (common on
+  Windows). Add `POSTGRES_HOST_PORT=5433` to `.env`, change `:5432/` to `:5433/` in `DATABASE_URL`,
+  and start PostgreSQL again with the option B command.
+- **Port 8000 is already in use**: stop the other service using it, or in option B run
+  `uvicorn app.main:app --reload --port 8001`.
+- **Events stay `pending`**: `LLM_API_KEY` is missing; complete step 3 and run again.
+
+For Supabase or another managed PostgreSQL, put its URL in `DATABASE_URL` (with whatever SSL the
+instance requires) and use option B without starting the `postgres` container.
+
+Never put real values in `.env.example`, workflows, fixtures, or documentation.
+
+## Security and privacy
+
+- Do not commit `.env`, tokens, LLM keys, database credentials, or private identifiers.
+- If a credential ever appears in a tracked file or a shared log, revoke it and issue a new one;
+  deleting the file does not remove it from Git history.
+- GitHub Actions credentials must be configured as GitHub Secrets. The PostgreSQL test values in
+  the workflows are ephemeral and only used inside the runner.
+- The configured sources are public URLs. Review `config/sources.yaml` before adding internal
+  endpoints or access-restricted feeds.
+
+## Usage
+
+The commands in this section assume option B (virtual environment activated). With option A,
+prefix each `python scripts/...` with `docker compose run --rm radar`.
+
+```bash
+python scripts/run_radar.py
+```
+
+For a real run without delivering Telegram messages:
+
+```bash
+python scripts/run_radar.py --dry-run
+```
+
+A dry-run persists normally and, if LLM credentials are set, prints each eligible alert between
+`WOULD_ALERT` and `END_WOULD_ALERT`. Without credentials it processes up to the prefilter and leaves
+events in `pending` state so a later run can analyze them.
+
+To validate feeds without the LLM or Telegram:
 
 ```bash
 python scripts/check_feeds.py
 ```
 
-Para validar juntas todas las fuentes RSS, `web_changelog` y `web_articles`, incluyendo estado HTTP,
-cantidad de entradas, fecha más reciente y estado de parsing, sin llamar al LLM:
+To validate all RSS, `web_changelog`, and `web_articles` sources together, including HTTP status,
+entry count, latest date, and parsing status, without calling the LLM:
 
 ```bash
 python scripts/check_sources.py
 ```
 
-Para inspeccionar y calibrar la última corrida persistida, sin consumir llamadas LLM ni acceder
-a servicios externos:
+To inspect and calibrate the latest persisted run, without LLM calls or external services:
 
 ```bash
 python scripts/show_latest_run.py
 python scripts/show_latest_run.py --details
 ```
 
-También se puede seleccionar una corrida con `--run-id <UUID>` o limitar la salida con `--limit`.
+You can also pick a run with `--run-id <UUID>` or limit the output with `--limit`.
 
-Para inspeccionar la evidencia cruda de un `candidate_record` y distinguir errores de collector,
-dedupe o análisis, sin llamadas externas:
+To inspect the raw evidence of a `candidate_record` and tell collector, dedupe, or analysis errors
+apart, without external calls:
 
 ```bash
 python scripts/show_candidate.py <candidate-record-uuid>
 ```
 
-Para revisar el digest sin enviar Telegram ni crear una reserva de envío:
+To preview the digest without sending Telegram messages or reserving a delivery:
 
 ```bash
 python scripts/send_digest.py --dry-run
 ```
 
-Para enviarlo utilizando exclusivamente análisis ya persistidos:
+To send it using only already-persisted analyses:
 
 ```bash
 python scripts/send_digest.py
 ```
 
-Durante el desarrollo, `--force` permite ignorar la protección contra duplicados:
+During development, `--force` bypasses the duplicate-delivery guard:
 
 ```bash
 python scripts/send_digest.py --force
 ```
 
-El digest admite además `--hours 48` y `--run-id <UUID>`. No consulta RSS, no recalcula
-scores y realiza cero llamadas al LLM; el único acceso externo de un envío real es Telegram.
+The digest also accepts `--hours 48` and `--run-id <UUID>`. It does not fetch feeds, does not
+recompute scores, and makes zero LLM calls; the only external access of a real send is Telegram.
 
-Para probar exclusivamente la entrega de Telegram, sin modificar thresholds:
+To test Telegram delivery alone, without changing thresholds:
 
 ```bash
 python scripts/test_telegram.py
 ```
 
-Cada corrida registra un `run_id`. Los fallos de una fuente, un artículo, structured output o Telegram quedan aislados. Cada item recolectado tiene un `candidate_record`; los descartes se guardan como `duplicate`, `already_seen`, `too_old`, `low_relevance`, `low_trust`, `high_hype`, `invalid` o `analysis_failed` sin sobrescribir la historia del artículo original.
+Every run records a `run_id`. Failures of a single source, article, structured output, or Telegram
+delivery are isolated. Every collected item gets a `candidate_record`; discards are stored as
+`duplicate`, `already_seen`, `too_old`, `low_relevance`, `low_trust`, `high_hype`, `invalid`, or
+`analysis_failed` without overwriting the original article's history.
 
-Para levantar únicamente los probes HTTP:
+To start only the HTTP probes:
 
 ```bash
 uvicorn app.main:app --reload
@@ -139,44 +302,44 @@ curl http://localhost:8000/health
 curl http://localhost:8000/ready
 ```
 
-## Fuentes y perfiles dinámicos
+## Sources and dynamic profiles
 
-- `config/sources.yaml` agrupa fuentes configurables por tipo: `rss`, `web_changelog`,
-  `web_articles`, `github_releases` y `huggingface_models`.
-- `rss` consume feeds estructurados; `web_changelog` extrae releases o cambios técnicos de una
-  página oficial; `web_articles` extrae solamente las tarjetas visibles de un índice editorial.
-  Siempre se prefiere un RSS/Atom oficial y estable al parser HTML.
-- La selección actual cubre laboratorios y changelogs oficiales, investigación de seguridad y
-  alineamiento en arXiv, el International AI Safety Report y análisis secundarios de WIRED y
-  Normal Technology. También incorpora investigación institucional de Google y Amazon, estándares
-  de NIST, adopción educativa, infraestructura y economía de IA, ciencia y mercado. Los libros y
-  artículos individuales usados como bibliografía no se tratan como feeds: sus publicaciones
-  originales quedan cubiertas por los canales vivos correspondientes.
-- Cada feed RSS procesa como máximo sus 100 entradas más recientes por corrida (configurable con
-  `limit`) para evitar reingestar historiales completos de feeds muy grandes.
-- Las fuentes `web_changelog` usan parsers HTML pequeños y específicos; cada entrada se convierte
-  en un `Candidate` independiente y la URL canónica existente conserva la idempotencia entre corridas.
-- Para agregar una fuente RSS se agrega una entrada bajo `rss`. Para un changelog se agrega bajo
-  `web_changelog` con `parser`, `enabled`, `trust_level`, `is_primary` y, cuando corresponda,
+- `config/sources.yaml` groups configurable sources by type: `rss`, `web_changelog`,
+  `web_articles`, `github_releases`, and `huggingface_models`.
+- `rss` consumes structured feeds; `web_changelog` extracts releases or technical changes from an
+  official page; `web_articles` extracts only the visible cards of an editorial index. A stable
+  official RSS/Atom feed is always preferred over an HTML parser.
+- The current selection covers official labs and changelogs, safety and alignment research on
+  arXiv, the International AI Safety Report, and secondary analysis from WIRED and Normal
+  Technology. It also includes institutional research from Google and Amazon, NIST standards,
+  education adoption, AI infrastructure and economics, science, and markets. Books and individual
+  articles used as references are not treated as feeds: their original publications are covered
+  by the corresponding live channels.
+- Each RSS feed processes at most its 100 most recent entries per run (configurable with `limit`)
+  to avoid re-ingesting the full history of very large feeds.
+- `web_changelog` sources use small, source-specific HTML parsers; each entry becomes an
+  independent `Candidate`, and the existing canonical URL keeps runs idempotent.
+- To add an RSS source, add an entry under `rss`. For a changelog, add it under `web_changelog`
+  with `parser`, `enabled`, `trust_level`, `is_primary`, and, when applicable,
   `requires_primary_verification`.
-- Cada parser de `web_articles` recibe HTML y URL base y devuelve una lista uniforme de
-  `ArticleIndexItem(title, url, published_at, summary)`. Para agregar uno, implementar una función
-  específica en `app/collectors/web_articles.py`, registrarla en `PARSERS`, añadir fixtures locales
-  de estructura válida y cambiada, y habilitar la fuente sólo después de `check_sources.py`.
-  El collector hace una petición al índice y nunca descarga el cuerpo de cada artículo.
-- `github_releases` consume la API oficial de GitHub, ignora drafts y no inspecciona commits, PRs
-  ni tags. `huggingface_models` consulta la API pública por organización y usa `model id` y
-  `createdAt`; cambios posteriores de README o metadata conservan la misma identidad.
-- La evidencia secundaria se persiste con `requires_primary_verification` y una evidencia primaria
-  posterior actualiza el mismo evento. La política de alerta inmediata conserva por ahora la lógica
-  existente: distinguir automáticamente cobertura secundaria de análisis original del autor requiere
-  una señal editorial explícita y queda para una iteración posterior; no se bloquean análisis propios
-  sólo por publicarse en una fuente experta.
-- Cada YAML dentro de `config/profiles/` define un perfil con `slug`, `name`, `icon`,
-  `description`, señales gratuitas y `enabled`.
-- Agregar una fuente o tema no requiere cambios de código; la configuración se valida al cargarla.
+- Each `web_articles` parser receives HTML and a base URL and returns a uniform list of
+  `ArticleIndexItem(title, url, published_at, summary)`. To add one, implement a specific function
+  in `app/collectors/web_articles.py`, register it in `PARSERS`, add local fixtures for both a
+  valid and a changed structure, and enable the source only after `check_sources.py` passes. The
+  collector makes one request to the index and never downloads individual article bodies.
+- `github_releases` uses the official GitHub API, ignores drafts, and does not inspect commits, PRs,
+  or tags. `huggingface_models` queries the public API per organization and uses `model id` and
+  `createdAt`; later README or metadata changes keep the same identity.
+- Secondary evidence is stored with `requires_primary_verification`, and later primary evidence
+  updates the same event. The immediate-alert policy keeps the existing logic for now:
+  automatically telling secondary coverage apart from an author's original analysis requires an
+  explicit editorial signal and is left for a later iteration; original analysis is not blocked
+  just because it was published by an expert source.
+- Each YAML file in `config/profiles/` defines a profile with `slug`, `name`, `icon`,
+  `description`, free signals, and `enabled`.
+- Adding a source or topic requires no code changes; the configuration is validated on load.
 
-Para desactivar temporalmente un perfil sin borrar sus scores históricos:
+To temporarily disable a profile without deleting its historical scores:
 
 ```yaml
 slug: bank_risk
@@ -185,25 +348,26 @@ icon: "🏦"
 enabled: false
 ```
 
-Para agregar un interés nuevo, alcanza con crear otro YAML:
+To add a new interest, just create another YAML file:
 
 ```yaml
 slug: my_profile
 name: My Profile
 icon: "🔎"
 enabled: true
-description: Novedades relevantes para este interés.
+description: News relevant to this interest.
 topics:
   relevant_topic: 1.0
 ```
 
-Todos los perfiles activos se incorporan automáticamente a la misma llamada LLM por evento. Un
-perfil deshabilitado no participa del prompt, scoring, alerta, digest ni visualización actual, pero
-sus registros históricos permanecen en PostgreSQL.
+All active profiles are automatically included in the same LLM call per event. A disabled profile
+does not take part in the prompt, scoring, alerts, digest, or current views, but its historical
+records remain in PostgreSQL.
 
-## Tests y lint
+## Tests and linting
 
-Los tests no llaman servicios externos ni consumen APIs pagas. RSS, LLM y Telegram tienen fixtures/fakes o transportes HTTP mockeados.
+Tests never call external services or paid APIs. RSS, the LLM, and Telegram use fixtures/fakes or
+mocked HTTP transports.
 
 ```bash
 pytest
@@ -211,32 +375,32 @@ ruff check .
 ruff format --check .
 ```
 
-Los fixtures reproducibles están en `tests/fixtures/`.
+Reproducible fixtures live in `tests/fixtures/`.
 
-Los workflows `Tests`, `RSS smoke test` y `AI Radar dry-run` pueden iniciarse manualmente con
-`workflow_dispatch`. El dry-run toma credenciales exclusivamente de GitHub Secrets.
+The `Tests`, `RSS smoke test`, and `AI Radar dry-run` workflows can be started manually with
+`workflow_dispatch`. The dry-run takes credentials exclusively from GitHub Secrets.
 
-## Idempotencia y entregas
+## Idempotency and delivery
 
-- URL canónica única impide insertar dos veces el mismo artículo.
-- La similitud conservadora de títulos agrupa coberturas distintas en un evento.
-- Sólo los eventos nuevos llegan al LLM.
-- Un constraint permite una única alerta inmediata de Telegram por evento.
-- La alerta se persiste como `pending` antes del request y luego queda `sent` o `failed`; un fallo no borra su estado ni provoca reenvíos automáticos ambiguos.
+- A unique canonical URL prevents inserting the same article twice.
+- Conservative title similarity groups different coverage of the same news into one event.
+- Only new events reach the LLM.
+- A database constraint allows a single immediate Telegram alert per event.
+- An alert is persisted as `pending` before the request and then marked `sent` or `failed`; a
+  failure never erases its state or triggers ambiguous automatic resends.
 
-Consulte la propuesta y el plan posterior en [`docs/architecture-proposal.md`](docs/architecture-proposal.md).
+See the design proposal and follow-up plan in
+[`docs/architecture-proposal.md`](docs/architecture-proposal.md) (Spanish).
 
-## Producción en servidor Linux
+## Production on a Linux server
 
-El deployment estable usa Docker Compose para `postgres` y `radar`, y timers systemd del host para
-Radar, digest y health de fuentes. GitHub Actions no programa ejecuciones de producción. Consulte
-[`docs/production-deployment.md`](docs/production-deployment.md) para instalación Ubuntu desde cero,
-validación sin Telegram, operación, backups, restore y rollback.
+The stable deployment uses Docker Compose for `postgres` and `radar`, and host systemd timers for
+the radar, the digest, and source health checks. GitHub Actions does not schedule production runs.
+See [`docs/production-deployment.md`](docs/production-deployment.md) for an Ubuntu install from
+scratch, validation without Telegram, operations, backups, restore, and rollback.
 
-## Copyright y licencia
+## License
 
-Copyright (c) 2026 AI Radar authors. All rights reserved.
-
-La publicación de este repositorio no concede por sí sola permiso para copiar, modificar,
-redistribuir o utilizar el código en productos. Si se desea una licencia open source, debe añadirse
-un archivo `LICENSE` con los términos elegidos y sustituirse esta sección por el aviso correspondiente.
+© 2026 [gabrieljaime](https://github.com/gabrieljaime). Released under the [MIT License](LICENSE).
+You may use, copy, modify, and redistribute the code, including in commercial projects, as long as
+you keep the copyright notice and the license.

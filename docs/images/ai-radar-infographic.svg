@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">AI Radar — del ruido a las señales que importan</title>
+<desc id="desc">Infografía de AI Radar: 55 fuentes públicas se recolectan, normalizan, deduplican y filtran antes de analizar eventos con un LLM; luego se puntúan por perfil y generan alertas, resumen diario y tablero web.</desc>
+<defs>
+<style><![CDATA[
+text{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;fill:#f5f3ff}
+.h1{font-size:47px;font-weight:760;letter-spacing:-1.8px}.lead{font-size:20px;fill:#c4c1d4}.eyebrow{font-size:13px;font-weight:700;letter-spacing:2px;fill:#9e91ff}
+.h2{font-size:23px;font-weight:740;letter-spacing:-.5px}.h3{font-size:18px;font-weight:710}.body{font-size:15px;fill:#d1cede}.small{font-size:13px;fill:#aaa6bc}.tiny{font-size:11px;fill:#8d8ba0}
+.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;fill:#aaa6bc}
+.card{fill:#16161d;stroke:#33313c;stroke-width:1}.minor{fill:#1c1a25;stroke:#383440;stroke-width:1}
+]]></style>
+<linearGradient id="hero" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#242041"/><stop offset="1" stop-color="#111017"/></linearGradient>
+<linearGradient id="violet" x1="0" x2="1"><stop stop-color="#9b83ff"/><stop offset="1" stop-color="#6958e3"/></linearGradient>
+<marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4 0 8Z" fill="#7c6cf6"/></marker>
+</defs>
+<rect width="1600" height="900" fill="#0a0a0d"/>
+<circle cx="1550" cy="-80" r="450" fill="#191529" opacity=".65"/>
+<rect x="48" y="38" width="1504" height="174" rx="22" fill="url(#hero)" stroke="#383054"/>
+<rect x="77" y="64" width="120" height="25" rx="12" fill="#403270"/><text x="94" y="81" class="eyebrow" style="font-size:10px;letter-spacing:1px">OPEN SOURCE</text>
+<text x="77" y="143" class="h1">AI Radar</text>
+<text x="331" y="142" font-size="30" fill="#9784ff">/</text>
+<text x="358" y="143" font-size="30" font-weight="650">Del ruido a las señales que importan</text>
+<text x="78" y="182" class="lead">Monitorea el ecosistema de IA y transforma novedades en alertas útiles para cada perfil.</text>
+<g transform="translate(1327 72)"><circle cx="84" cy="50" r="54" fill="none" stroke="#54448f" stroke-width="1.5"/><circle cx="84" cy="50" r="33" fill="none" stroke="#7867e7" stroke-width="1.5"/><circle cx="84" cy="50" r="10" fill="#7c6cf6"/><path d="M84 50l58-34" stroke="#9d8dff" stroke-width="3" stroke-linecap="round"/><circle cx="142" cy="16" r="5" fill="#34d399"/></g>
+
+<text x="52" y="258" class="eyebrow">01  ENTRADA</text><text x="380" y="258" class="eyebrow">02  PROCESAMIENTO</text><text x="1186" y="258" class="eyebrow">03  ACCIÓN</text>
+
+<!-- Source module -->
+<rect class="card" x="48" y="278" width="306" height="346" rx="18"/>
+<text x="71" y="321" class="h2">55 fuentes públicas</text>
+<text x="71" y="344" class="mono">config/sources.yaml</text>
+<path d="M71 361h258" stroke="#34313d"/>
+<g fill="#8877ed"><circle cx="79" cy="389" r="4"/><circle cx="79" cy="432" r="4"/><circle cx="79" cy="475" r="4"/><circle cx="79" cy="518" r="4"/><circle cx="79" cy="561" r="4"/></g>
+<text x="96" y="394" class="body">RSS / Atom</text><text x="96" y="411" class="tiny">OpenAI · Google DeepMind · arXiv · WIRED</text>
+<text x="96" y="437" class="body">Changelogs oficiales</text><text x="96" y="454" class="tiny">Rastreo web</text>
+<text x="96" y="480" class="body">Índices de blogs editoriales</text>
+<text x="96" y="523" class="body">GitHub Releases API</text>
+<text x="96" y="566" class="body">Hugging Face Models API</text>
+<text x="71" y="601" class="small">Una misma entrada para noticias,</text><text x="71" y="617" class="small">lanzamientos y cambios técnicos.</text>
+
+<!-- central transformation -->
+<rect class="card" x="377" y="278" width="779" height="346" rx="18"/>
+<text x="402" y="318" class="h2">Una cadena que reduce el ruido</text>
+<text x="403" y="343" class="small">El LLM interviene recién cuando ya hay un evento relevante.</text>
+<path d="M457 417H1086" stroke="#7c6cf6" stroke-width="2" marker-end="url(#arrow)"/>
+<g>
+<circle cx="453" cy="417" r="28" fill="#282240" stroke="#7963ed" stroke-width="2"/><text x="453" y="424" text-anchor="middle" font-size="20" font-weight="700">1</text>
+<circle cx="607" cy="417" r="28" fill="#282240" stroke="#7963ed" stroke-width="2"/><text x="607" y="424" text-anchor="middle" font-size="20" font-weight="700">2</text>
+<circle cx="761" cy="417" r="28" fill="#3a2d1b" stroke="#fbbf24" stroke-width="2"/><text x="761" y="424" text-anchor="middle" font-size="20" font-weight="700" fill="#fbbf24">3</text>
+<circle cx="915" cy="417" r="28" fill="#282240" stroke="#7963ed" stroke-width="2"/><text x="915" y="424" text-anchor="middle" font-size="20" font-weight="700">4</text>
+<circle cx="1069" cy="417" r="28" fill="#282240" stroke="#7963ed" stroke-width="2"/><text x="1069" y="424" text-anchor="middle" font-size="20" font-weight="700">5</text>
+</g>
+<text x="403" y="469" class="h3">Recolectar</text><text x="403" y="490" class="small">URL canónica</text><text x="403" y="507" class="small">+ artículo</text>
+<text x="555" y="469" class="h3">Unificar</text><text x="555" y="490" class="small">Varios artículos,</text><text x="555" y="507" class="small">un evento</text>
+<text x="712" y="469" class="h3" fill="#fbbf24">Prefiltrar</text><text x="712" y="490" class="small">Sin gastar</text><text x="712" y="507" class="small">en LLM</text>
+<text x="876" y="469" class="h3">Analizar</text><text x="876" y="490" class="small">1 llamada</text><text x="876" y="507" class="small">estructurada</text>
+<text x="1028" y="469" class="h3">Puntuar</text><text x="1028" y="490" class="small">0–100</text><text x="1028" y="507" class="small">+ confianza</text>
+<rect x="401" y="540" width="729" height="63" rx="11" fill="#211e21" stroke="#56452d"/>
+<path d="M422 557h27l-10 13v10l-7 5v-15z" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linejoin="round"/>
+<text x="465" y="565" font-size="14" font-weight="700" fill="#fbbf24">Filtro antes del LLM</text>
+<text x="465" y="586" class="small">too_old · low_relevance · low_trust · high_hype · duplicate</text>
+
+<!-- action/output -->
+<rect x="1180" y="278" width="372" height="346" rx="18" fill="#121d1a" stroke="#2d5b49"/>
+<text x="1204" y="319" class="h2">Tres formas de actuar</text>
+<rect x="1202" y="342" width="326" height="91" rx="11" fill="#1a3027" stroke="#396f56"/>
+<circle cx="1224" cy="365" r="5" fill="#34d399"/><text x="1240" y="370" class="h3">Alerta instantánea</text>
+<text x="1219" y="394" class="small">Telegram · score ≥ 90 y confianza ≥ 0,75</text><text x="1219" y="414" class="small">Seguridad: desde score 80</text>
+<rect x="1202" y="445" width="326" height="67" rx="11" fill="#1a3027" stroke="#396f56"/>
+<circle cx="1224" cy="467" r="5" fill="#34d399"/><text x="1240" y="472" class="h3">Resumen diario</text><text x="1219" y="495" class="small">Telegram · todos los días a las 08:00</text>
+<rect x="1202" y="524" width="326" height="77" rx="11" fill="#1a3027" stroke="#396f56"/>
+<circle cx="1224" cy="546" r="5" fill="#34d399"/><text x="1240" y="551" class="h3">Tablero web</text>
+<text x="1219" y="574" class="small">Overview · Radar · Sources · Runs</text><text x="1219" y="590" class="tiny">FastAPI + HTMX · /health · /ready</text>
+
+<!-- profile section -->
+<rect class="card" x="48" y="648" width="1015" height="142" rx="18"/>
+<text x="70" y="680" class="eyebrow">RELEVANCIA PERSONALIZADA</text>
+<text x="70" y="711" class="h2">Una noticia, distintas prioridades</text>
+<text x="70" y="738" class="small">El análisis recibe perfiles configurables y calcula puntaje y confianza para cada uno.</text>
+<text x="70" y="768" class="mono">config/profiles/*.yaml</text>
+<g font-size="15" font-weight="650"><rect x="490" y="671" width="130" height="41" rx="10" fill="#27233c" stroke="#514682"/><text x="509" y="697">General AI 🔎</text>
+<rect x="633" y="671" width="154" height="41" rx="10" fill="#27233c" stroke="#514682"/><text x="650" y="697">Bank Risk 🏦</text>
+<rect x="490" y="724" width="226" height="41" rx="10" fill="#27233c" stroke="#514682"/><text x="506" y="750">AI Agent Developer 🤖</text>
+<rect x="729" y="724" width="150" height="41" rx="10" fill="#27233c" stroke="#514682"/><text x="748" y="750">Educator 🎓</text></g>
+
+<!-- persistence -->
+<rect class="card" x="1081" y="648" width="471" height="142" rx="18"/>
+<g fill="none" stroke="#8b7cf5" stroke-width="1.8"><ellipse cx="1123" cy="688" rx="18" ry="6"/><path d="M1105 688v40c0 9 36 9 36 0v-40M1105 707c0 9 36 9 36 0"/></g>
+<text x="1160" y="694" class="h2">PostgreSQL</text>
+<text x="1104" y="739" class="small">Artículos · eventos · ejecuciones · análisis</text>
+<text x="1104" y="759" class="small">Alertas · resúmenes · salud de fuentes</text>
+
+<!-- operational footer -->
+<rect x="48" y="809" width="1504" height="61" rx="11" fill="#111116" stroke="#34313c" stroke-dasharray="5 5"/>
+<text x="69" y="835" font-size="12" font-weight="700" fill="#b2a7ff">OPERACIÓN</text>
+<text x="175" y="835" class="small">Docker Compose (radar + postgres) · timers: radar cada 2 h · resumen 08:00 · salud de fuentes 07:30</text>
+<text x="175" y="855" class="tiny">API compatible con OpenAI · esquema JSON · rate limit · secretos solo en .env</text>
+<text x="1550" y="892" text-anchor="end" class="tiny">© 2026 gabrieljaime · MIT License</text>
+</svg>

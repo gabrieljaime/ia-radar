@@ -1,0 +1,8 @@
+# Local development only: publishes PostgreSQL on 127.0.0.1 so the app, Alembic, and the scripts
+# can run from a Python virtualenv on the host. Production uses docker-compose.yml alone.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
+# Set POSTGRES_HOST_PORT in .env if 5432 is already taken, and use the same port in DATABASE_URL.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
